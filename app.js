@@ -6,7 +6,7 @@
    AES-GCM 256 ilə şifrələnir. Açar ana şifrədən PBKDF2 ilə alınır.
    ========================================================= */
 
-const APP_VERSION = '6';
+const APP_VERSION = '7';
 const $ = (s, r = document) => r.querySelector(s);
 const app = $('#app');
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -107,6 +107,7 @@ const I = {
   key: svg('<circle cx="7.5" cy="15.5" r="4.5"/><path d="M10.7 12.3L21 2M16 7l3 3M19 4l2 2"/>'),
   alert: svg('<path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0zM12 9v4M12 17h.01"/>'),
   shield: svg('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>'),
+  check: svg('<path d="M5 12.5l4.5 4.5L19 7.5"/>'),
   wallet: svg('<path d="M20 7V5.5A1.5 1.5 0 0 0 18.5 4H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H5a2 2 0 0 1-2-2V6"/><path d="M16.5 12.5h4.5v4h-4.5a2 2 0 0 1 0-4z"/>'),
   flip: svg('<path d="M3 12a9 9 0 0 1 15.5-6.2L21 8M21 3v5h-5M21 12a9 9 0 0 1-15.5 6.2L3 16M3 21v-5h5"/>'),
   more: svg('<circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/>'),
@@ -136,7 +137,7 @@ function cardFace(it, reveal = false) {
   return `<div class="cf front ${sk.cls}"${sk.style}>
     <div class="cf-top"><span class="cf-bank">${esc(f.bank || it.title || 'Bank kartı')}${sub}</span>${I.nfc}</div>
     <div class="cf-chip">${CHIP}</div>
-    <div class="cf-num">${esc(num)}</div>
+    <div class="cf-num">${S.animNum === it.id && show ? [...num].map((ch, i) => `<span class="dg" style="--i:${i}">${ch === ' ' ? '&nbsp;' : esc(ch)}</span>`).join('') : esc(num)}</div>
     <div class="cf-bot">
       <div class="cf-meta">
         <span class="cf-valid"><small>VALID<br>THRU</small><b>${esc(f.expiry || '••/••')}</b></span>
@@ -144,6 +145,7 @@ function cardFace(it, reveal = false) {
       </div>
       ${LOGO[brand(n)] || ''}
     </div>
+    <i class="glare"></i>
   </div>`;
 }
 function cardBack(it) {
@@ -333,8 +335,9 @@ function toast(msg) {
   const t = $('#toast');
   t.textContent = msg;
   t.hidden = false;
+  requestAnimationFrame(() => t.classList.add('show'));
   clearTimeout(toast.t);
-  toast.t = setTimeout(() => { t.hidden = true; }, 1800);
+  toast.t = setTimeout(() => t.classList.remove('show'), 2000);
 }
 async function copy(text) {
   try {
@@ -369,6 +372,10 @@ async function compressImage(file, portrait = false) {
 const safeImg = (src) => (typeof src === 'string' && /^data:image\/(jpeg|png|webp|gif);base64,/.test(src) ? src : '');
 
 /* ---------------- Dialoqlar ---------------- */
+function closeWrap(wrap) {
+  wrap.classList.add('closing');
+  setTimeout(() => wrap.remove(), 280);
+}
 function modal({ title, text = '', fields = [], ok = 'Təsdiq', cancel = 'Ləğv et', danger = false, validate }) {
   return new Promise((resolve) => {
     const wrap = document.createElement('div');
@@ -382,7 +389,7 @@ function modal({ title, text = '', fields = [], ok = 'Təsdiq', cancel = 'Ləğv
     document.body.append(wrap);
     const form = $('form', wrap);
     const err = $('.err', wrap);
-    const close = (v) => { wrap.remove(); resolve(v); };
+    const close = (v) => { closeWrap(wrap); resolve(v); };
     $('[data-x]', wrap)?.addEventListener('click', () => close(null));
     wrap.addEventListener('click', (e) => { if (e.target === wrap) close(null); });
     form.addEventListener('submit', async (e) => {
@@ -411,8 +418,8 @@ function sheet(title, options) {
     document.body.append(wrap);
     wrap.addEventListener('click', (e) => {
       const o = e.target.closest('[data-v]');
-      if (o) { wrap.remove(); resolve(o.dataset.v); }
-      else if (e.target === wrap || e.target.closest('[data-x]')) { wrap.remove(); resolve(null); }
+      if (o) { closeWrap(wrap); resolve(o.dataset.v); }
+      else if (e.target === wrap || e.target.closest('[data-x]')) { closeWrap(wrap); resolve(null); }
     });
   });
 }
@@ -626,10 +633,10 @@ function renderLock() {
   setTimeout(() => $('#f-unlock input')?.focus(), 50);
 }
 
-function listItemHTML(it) {
+function listItemHTML(it, i = 0) {
   const exp = expiryOf(it);
   const meta = expiryBadge(it) || (exp && !isNaN(exp) ? `<span class="ri-meta">${exp.getFullYear()}</span>` : '');
-  return `<button class="row-item" data-act="open" data-id="${esc(it.id)}">
+  return `<button class="row-item" data-act="open" data-id="${esc(it.id)}" style="--i:${i + 1}">
     <span class="ri-ico t-${it.type}">${TYPES[it.type].icon}</span>
     <span class="ri-main"><b>${esc(titleOf(it))}</b><small>${esc(subOf(it))}</small></span>
     ${meta}
@@ -646,12 +653,12 @@ function statusLine() {
   const date = azDate(new Date());
   const soon = S.items.filter((i) => { const n = daysLeft(i); return n !== null && n <= 60; })
     .sort((a, b) => daysLeft(a) - daysLeft(b));
-  let st = '<span class="st-ok">hər şey qaydasındadır</span>';
+  let st = '<span class="status">Hər şey qaydasındadır</span>';
   if (soon.length === 1) {
     const n = daysLeft(soon[0]);
-    st = `<span class="st-warn">${esc(titleOf(soon[0]))} — ${n < 0 ? 'müddəti bitib' : n + ' gün qalıb'}</span>`;
-  } else if (soon.length > 1) st = `<span class="st-warn">${soon.length} elementin müddəti bitir</span>`;
-  return `${esc(date)} · ${st}`;
+    st = `<span class="status warn">${esc(titleOf(soon[0]))} · ${n < 0 ? 'müddəti bitib' : n + ' gün qalıb'}</span>`;
+  } else if (soon.length > 1) st = `<span class="status warn">${soon.length} elementin müddəti bitir</span>`;
+  return `<span>${esc(date)}</span>${st}`;
 }
 const cardSlides = () => [...document.querySelectorAll('#carousel .slide')];
 const currentCard = () => S.items.find((i) => i.id === cardSlides()[S.slide]?.dataset.id);
@@ -678,15 +685,27 @@ function afterList() {
   const slides = cardSlides();
   const step = () => (slides[1] ? slides[1].offsetLeft - slides[0].offsetLeft : slides[0].offsetWidth) || 1;
   S.slide = Math.min(S.slide || 0, slides.length - 1);
-  car.scrollLeft = S.slide * step();
+  car.style.scrollSnapType = 'none';
+  car.scrollLeft = slides[S.slide].offsetLeft - (car.clientWidth - slides[S.slide].offsetWidth) / 2;
+  car.style.scrollSnapType = '';
+  paintCarousel(car);
   updateCardPanel();
+  setAmbient(currentCard());
+  let raf = 0, idle = 0;
   car.addEventListener('scroll', () => {
+    cancelAnimationFrame(raf);
+    raf = requestAnimationFrame(() => paintCarousel(car));
+    car.classList.add('moving');
+    clearTimeout(idle);
+    idle = setTimeout(() => car.classList.remove('moving'), 120);
     const i = Math.max(0, Math.min(slides.length - 1, Math.round(car.scrollLeft / step())));
     if (i !== S.slide) {
       // əvvəlki kart çevrilmişdisə, geri çevir
       slides[S.slide]?.querySelector('.flip')?.classList.remove('on');
       S.slide = i;
       updateCardPanel();
+      setAmbient(currentCard());
+      buzz();
     }
   }, { passive: true });
 }
@@ -718,14 +737,82 @@ function listHTML() {
       <div id="card-info"></div>
     </section>${rest}`;
 }
+/* ---------------- Canlı fon ---------------- */
+const PRESET_HEX = {
+  classic: '#1456c8', red: '#d0202c', green: '#0f7a45', orange: '#f06a1d', purple: '#5b21b6', indigo: '#5b5ff0',
+  violet: '#a855f7', rose: '#e11d48', emerald: '#059669', sky: '#0284c7', amber: '#ca8a04', slate: '#64748b',
+  black: '#2b2b34', gold: '#c9a04a', platinum: '#a9aeb3', silver: '#b9bdc1', blackmetal: '#3a3a3e', pearl: '#d8d4c8'
+};
+const AMBIENT_DEFAULT = ['#c9c3ff', '#ffd9c7', '#cfe9e1'];
+function setAmbient(it) {
+  let cols = AMBIENT_DEFAULT;
+  if (it?.type === 'card') {
+    const a = it.color === 'custom' ? hex(it.c1, '#5b5ff0') : PRESET_HEX[it.color] || '#5b5ff0';
+    const b = it.color === 'custom' ? hex(it.c2, a) : a;
+    cols = [a, b, '#ffffff'];
+  }
+  document.querySelectorAll('.ambient i').forEach((el, i) => { el.style.backgroundColor = cols[i]; });
+}
+
+// Karuseldə mərkəzdəki kart böyük, yanlardakılar kiçik və solğun
+function paintCarousel(car) {
+  const mid = car.scrollLeft + car.clientWidth / 2;
+  for (const sl of car.children) {
+    const d = Math.min(1, Math.abs(sl.offsetLeft + sl.offsetWidth / 2 - mid) / sl.offsetWidth);
+    const fb = sl.firstElementChild;
+    fb.style.setProperty('--s', (1 - d * 0.08).toFixed(3));
+    fb.style.setProperty('--o', (1 - d * 0.45).toFixed(3));
+  }
+}
+
+// Kart barmağın / siçanın hərəkətinə görə əyilir, işıq onu izləyir
+function attachTilt(el) {
+  if (!el || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  let raf = 0;
+  const move = (e) => {
+    const r = el.getBoundingClientRect();
+    const x = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
+    const y = Math.min(1, Math.max(0, (e.clientY - r.top) / r.height));
+    cancelAnimationFrame(raf);
+    raf = requestAnimationFrame(() => {
+      el.classList.add('tilting');
+      el.style.setProperty('--rx', ((0.5 - y) * 14).toFixed(2) + 'deg');
+      el.style.setProperty('--ry', ((x - 0.5) * 18).toFixed(2) + 'deg');
+      el.style.setProperty('--mx', (x * 100).toFixed(1) + '%');
+      el.style.setProperty('--my', (y * 100).toFixed(1) + '%');
+      el.style.setProperty('--go', '1');
+    });
+  };
+  const reset = () => {
+    cancelAnimationFrame(raf);
+    el.classList.remove('tilting');
+    ['--rx', '--ry', '--mx', '--my', '--go'].forEach((p) => el.style.removeProperty(p));
+  };
+  el.addEventListener('pointermove', move);
+  el.addEventListener('pointerleave', reset);
+  el.addEventListener('pointerup', reset);
+  el.addEventListener('pointercancel', reset);
+}
+
 /* ---------------- Footer menyu ---------------- */
 const TABS = [['all', I.wallet, 'Cüzdan'], ['doc', I.doc, 'Sənədlər'], ['add'], ['note', I.note, 'Qeydlər'], ['settings', I.gear, 'Ayarlar']];
 const currentTab = () => (S.view === 'settings' ? 'settings' : S.filter);
 function tabbarHTML() {
   const cur = currentTab();
-  return `<nav class="tabbar" aria-label="Menyu">${TABS.map(([t, icon, label]) => (t === 'add'
+  const idx = TABS.findIndex(([t]) => t === cur);
+  // göstərici əvvəlki tabdan başlayır, sonra yeni yerə sürüşür
+  const from = S.prevTabIdx ?? idx;
+  S.prevTabIdx = idx;
+  return `<nav class="tabbar" aria-label="Menyu"><div class="tabbar-in">
+    <span class="tab-ind" style="--ti:${from}" data-to="${idx}"></span>
+    ${TABS.map(([t, icon, label]) => (t === 'add'
     ? `<button class="tab-add" data-act="add" aria-label="Əlavə et"><span>${I.plus}</span></button>`
-    : `<button class="tab ${cur === t ? 'on' : ''}" data-act="tab" data-v="${t}" ${cur === t ? 'aria-current="page"' : ''}>${icon}<span>${label}</span></button>`)).join('')}</nav>`;
+    : `<button class="tab ${cur === t ? 'on' : ''}" data-act="tab" data-v="${t}" ${cur === t ? 'aria-current="page"' : ''}>${icon}<span>${label}</span></button>`)).join('')}
+  </div></nav>`;
+}
+function settleTabbar() {
+  const ind = $('.tab-ind', app);
+  if (ind) requestAnimationFrame(() => requestAnimationFrame(() => ind.style.setProperty('--ti', ind.dataset.to)));
 }
 function heroHTML(title, sub) {
   return `<header class="hero">
@@ -735,7 +822,7 @@ function heroHTML(title, sub) {
 }
 // Başlığın altındakı xətt yalnız məzmun sürüşəndə görünsün
 function watchScroll() {
-  const p = $('.page', app), h = $('.hero', app);
+  const p = $('.page', app), h = $('.hero', app) || $('.topbar', app);
   if (!p || !h) return;
   p.addEventListener('scroll', () => h.classList.toggle('scrolled', p.scrollTop > 4), { passive: true });
 }
@@ -750,23 +837,33 @@ function renderList() {
   app.innerHTML = `${heroHTML(head[0], head[1])}
     <div class="page">
       ${S.items.length > 3 ? `<label class="search">${I.search}<input id="q" type="search" placeholder="Axtar…" value="${esc(S.q)}" autocomplete="off"></label>` : ''}
-      <div id="list">${listHTML()}</div>
+      <div id="list" class="${S.listScroll ? '' : 'stagger'}">${listHTML()}</div>
     </div>
     ${tabbarHTML()}`;
   afterList();
   watchScroll();
+  settleTabbar();
+  if (!$('#carousel')) setAmbient();
+  setTimeout(() => $('#list')?.classList.remove('stagger'), 1200);
   // Detaldan qayıdanda siyahıda qaldığın yerə qayıt
   if (S.listScroll) { $('.page', app).scrollTop = S.listScroll; S.listScroll = 0; }
 }
 
 function bigCardHTML(it) {
-  return `<button class="face-box flip ${S.flipped ? 'on' : ''}" data-act="flip" aria-label="Kartı çevir">
+  return `<button class="face-box flip big-card ${S.flipped ? 'on' : ''}" data-act="flip" aria-label="Kartı çevir">
       <div class="flip-in">${cardFace(it)}${cardBack(it)}</div>
     </button>
     <p class="hint">Arxa üzü üçün karta toxunun</p>`;
 }
 function bigDocHTML(it) {
   return `<button class="face-box doc-big" data-act="reveal" data-k="${esc(it.id)}:number" aria-label="Nömrəni göstər/gizlət">${docFace(it)}</button>`;
+}
+// Eyni səhifəni yenidən çəkəndə sürüşmə yeri itməsin
+function rerender(fn) {
+  const st = $('.page', app)?.scrollTop || 0;
+  fn();
+  const p = $('.page', app);
+  if (p) p.scrollTop = st;
 }
 function renderDetail() {
   const it = S.items.find((x) => x.id === S.id);
@@ -796,6 +893,9 @@ function renderDetail() {
       <button class="btn danger-ghost block" data-act="delete">${I.trash} Sil</button>
       <p class="muted small center">Son dəyişiklik: ${azDateTime(new Date(it.updatedAt))}</p>
     </div>`;
+  attachTilt($('.big-card', app));
+  watchScroll();
+  setAmbient(it);
 }
 
 function fieldInput(f, v) {
@@ -854,6 +954,8 @@ function renderEdit() {
       <p class="err" hidden></p>
       <button class="btn primary block">Yadda saxla</button>
     </form>`;
+  watchScroll();
+  setAmbient(d);
 }
 
 function renderSettings() {
@@ -885,6 +987,8 @@ function renderSettings() {
     </div>
     ${tabbarHTML()}`;
   watchScroll();
+  settleTabbar();
+  setAmbient();
   navigator.storage?.estimate?.().then((e) => {
     const el = $('#s-usage');
     if (el) el.textContent = `${(e.usage / 1048576).toFixed(1)} MB`;
@@ -893,6 +997,7 @@ function renderSettings() {
 
 function render() {
   app.classList.remove('has-tabbar');
+  if (!S.key) setAmbient();
   if (!S.vault) return renderSetup();
   if (!S.key) return renderLock();
   ({ detail: renderDetail, edit: renderEdit, settings: renderSettings }[S.view] || renderList)();
@@ -940,17 +1045,17 @@ app.addEventListener('click', async (e) => {
     case 'color':
       S.draft.color = el.dataset.v;
       if (el.dataset.v !== 'custom') S.draft.finish = PRESETS[el.dataset.v].finish || 'gloss';
-      return renderEdit();
+      return rerender(renderEdit);
     case 'finish':
       S.draft.finish = el.dataset.v;
-      return renderEdit();
+      return rerender(renderEdit);
     case 'colorFromPhoto': {
       const src = (S.draft.images || []).map(safeImg).find(Boolean);
       if (!src) return toast('Əvvəlcə aşağıda kartın şəklini əlavə edin');
       try {
         const [c1, c2] = await colorsFromImage(src);
         Object.assign(S.draft, { color: 'custom', c1, c2 });
-        renderEdit();
+        rerender(renderEdit);
         toast('Rənglər şəkildən götürüldü');
       } catch { toast('Rəngi götürmək alınmadı'); }
       return;
@@ -964,6 +1069,9 @@ app.addEventListener('click', async (e) => {
       const c = currentCard();
       if (!c?.fields.number) return toast('Kart nömrəsi yoxdur');
       buzz();
+      const ic = el.querySelector('.qa-ic');
+      ic.innerHTML = I.check; ic.classList.add('done');
+      setTimeout(() => { ic.innerHTML = I.copy; ic.classList.remove('done'); }, 1400);
       return copy(digits(c.fields.number));
     }
     case 'qaShow': {
@@ -973,7 +1081,9 @@ app.addEventListener('click', async (e) => {
       S.revealed.has(k) ? S.revealed.delete(k) : S.revealed.add(k);
       const slide = cardSlides()[S.slide];
       const flipped = slide.querySelector('.flip')?.classList.contains('on');
+      S.animNum = c.id;
       slide.innerHTML = slideInner(c);
+      S.animNum = null;
       if (flipped) slide.querySelector('.flip').classList.add('on');
       buzz();
       return updateCardPanel();
@@ -991,7 +1101,7 @@ app.addEventListener('click', async (e) => {
         const f = inp.files[0];
         if (!f) return;
         try { S.draft.photo = await compressImage(f, true); } catch { return toast('Şəkil oxunmadı'); }
-        if (S.view === 'edit') renderEdit();
+        if (S.view === 'edit') rerender(renderEdit);
       };
       S.picking = true;
       inp.click();
@@ -999,7 +1109,7 @@ app.addEventListener('click', async (e) => {
     }
     case 'rmPhoto':
       S.draft.photo = '';
-      return renderEdit();
+      return rerender(renderEdit);
     case 'addImg': {
       const inp = document.createElement('input');
       inp.type = 'file'; inp.accept = 'image/*'; inp.multiple = true;
@@ -1007,7 +1117,7 @@ app.addEventListener('click', async (e) => {
         for (const f of inp.files) {
           try { S.draft.images.push(await compressImage(f)); } catch { toast('Şəkil oxunmadı'); }
         }
-        if (S.view === 'edit') renderEdit();
+        if (S.view === 'edit') rerender(renderEdit);
       };
       S.picking = true;
       inp.click();
@@ -1015,14 +1125,17 @@ app.addEventListener('click', async (e) => {
     }
     case 'rmImg':
       S.draft.images.splice(+el.dataset.i, 1);
-      return renderEdit();
+      return rerender(renderEdit);
     case 'viewImg':
       return openViewer((cur.images || []).map(safeImg).filter(Boolean), +el.dataset.i);
     case 'reveal': {
       const k = el.dataset.k;
       S.revealed.has(k) ? S.revealed.delete(k) : S.revealed.add(k);
       buzz();
-      return renderDetail();
+      if (k.endsWith(':number')) S.animNum = k.split(':')[0];
+      rerender(renderDetail);
+      S.animNum = null;
+      return;
     }
     case 'copy': {
       const f = TYPES[cur.type].fields.find((x) => x.k === el.dataset.k);
@@ -1116,6 +1229,8 @@ app.addEventListener('submit', async (e) => {
       await setMeta('fails', fails);
       btn.disabled = false; btn.textContent = 'Aç';
       form.elements.pw.select();
+      form.classList.remove('shake'); void form.offsetWidth; form.classList.add('shake');
+      navigator.vibrate?.([30, 40, 30]);
       return fail('Şifrə yanlışdır');
     }
     await setMeta('fails', { n: 0, until: 0 });
