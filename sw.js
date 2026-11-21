@@ -1,5 +1,6 @@
-// Offline işləmək üçün service worker. Fayllar dəyişəndə VERSION-u artır.
-const VERSION = 'v2';
+// Service worker: əvvəlcə şəbəkə (həmişə ən son versiya), internet yoxdursa — keş.
+// Fayllar dəyişəndə VERSION-u və app.js-dəki APP_VERSION-u artır.
+const VERSION = 'v3';
 const CACHE = `card-holder-${VERSION}`;
 const ASSETS = [
   './',
@@ -13,7 +14,11 @@ const ASSETS = [
 ];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS.map((u) => new Request(u, { cache: 'reload' })))).then(() => self.skipWaiting()));
+  e.waitUntil(
+    caches.open(CACHE)
+      .then((c) => c.addAll(ASSETS.map((u) => new Request(u, { cache: 'reload' }))))
+      .then(() => self.skipWaiting())
+  );
 });
 
 self.addEventListener('activate', (e) => {
@@ -24,20 +29,30 @@ self.addEventListener('activate', (e) => {
   );
 });
 
-// Cache-first: tətbiq internet olmadan da açılır.
+const fromCache = async (req) =>
+  (await caches.match(req, { ignoreSearch: true })) ||
+  (req.mode === 'navigate' ? caches.match('./index.html') : undefined);
+
 self.addEventListener('fetch', (e) => {
-  if (e.request.method !== 'GET') return;
-  const url = new URL(e.request.url);
-  if (url.origin !== location.origin) return;
-  e.respondWith(
-    caches.match(e.request, { ignoreSearch: true }).then((hit) =>
-      hit || fetch(e.request).then((res) => {
-        if (res.ok) {
-          const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put(e.request, copy));
-        }
-        return res;
-      }).catch(() => caches.match('./index.html'))
-    )
-  );
+  const req = e.request;
+  if (req.method !== 'GET') return;
+  if (new URL(req.url).origin !== location.origin) return;
+
+  e.respondWith((async () => {
+    // HTTP keşindən yan keçib serverdən yoxla (ETag ilə — dəyişməyibsə sürətlidir)
+    const fresh = req.mode === 'navigate'
+      ? new Request(req.url, { cache: 'no-cache', credentials: 'same-origin' })
+      : new Request(req, { cache: 'no-cache' });
+    const network = fetch(fresh).then(async (res) => {
+      if (res.ok) (await caches.open(CACHE)).put(req, res.clone());
+      return res;
+    });
+    // Zəif internetdə 4 saniyədən sonra keşdən aç
+    const timeout = new Promise((resolve) => setTimeout(async () => resolve(await fromCache(req)), 4000));
+    try {
+      return (await Promise.race([network, timeout])) || (await network);
+    } catch {
+      return (await fromCache(req)) || Response.error();
+    }
+  })());
 });

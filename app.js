@@ -6,6 +6,7 @@
    AES-GCM 256 ilə şifrələnir. Açar ana şifrədən PBKDF2 ilə alınır.
    ========================================================= */
 
+const APP_VERSION = '3';
 const $ = (s, r = document) => r.querySelector(s);
 const app = $('#app');
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -405,6 +406,7 @@ document.addEventListener('visibilitychange', () => {
   }
 });
 function lock() {
+  if (S.pendingReload) { S.key = null; S.items = []; S.reloading = true; location.reload(); return; }
   S.key = null; S.items = []; S.draft = null; S.revealed.clear(); S.q = '';
   document.querySelectorAll('.modal-wrap, .viewer').forEach((m) => m.remove());
   history.replaceState({ view: 'list' }, '');
@@ -713,7 +715,7 @@ function renderSettings() {
         <div class="srow"><span>İstifadə olunan yaddaş</span><span class="muted" id="s-usage">…</span></div>
         <button class="srow btnrow danger-text" data-act="wipe"><span>${I.trash} Bütün məlumatı sil</span></button>
       </div>
-      <p class="muted small center">Kartlarım · AES-256-GCM · PBKDF2 ${S.vault.iter.toLocaleString('az')} təkrar</p>
+      <p class="muted small center">Kartlarım v${APP_VERSION} · AES-256-GCM · PBKDF2 ${S.vault.iter.toLocaleString('az')} təkrar</p>
     </div>`;
   navigator.storage?.estimate?.().then((e) => {
     const el = $('#s-usage');
@@ -972,7 +974,19 @@ async function changePassword() {
 /* ---------------- Başlanğıc ---------------- */
 (async function init() {
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
-    navigator.serviceWorker.register('sw.js').catch(() => {});
+    const hadController = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then((reg) => {
+      reg.update().catch(() => {});
+      // Tətbiq hər dəfə önə gələndə yeni versiyanı yoxla
+      document.addEventListener('visibilitychange', () => { if (!document.hidden) reg.update().catch(() => {}); });
+    }).catch(() => {});
+    // Yeni versiya aktiv olanda: kilidlidirsə dərhal, açıqdırsa növbəti kilidlənmədə yenilə
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!hadController || S.reloading) return;
+      if (S.key) { S.pendingReload = true; return; }
+      S.reloading = true;
+      location.reload();
+    });
   }
   await openDB();
   S.vault = (await getMeta('vault')) || null;
