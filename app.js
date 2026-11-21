@@ -6,7 +6,7 @@
    AES-GCM 256 ilə şifrələnir. Açar ana şifrədən PBKDF2 ilə alınır.
    ========================================================= */
 
-const APP_VERSION = '5';
+const APP_VERSION = '6';
 const $ = (s, r = document) => r.querySelector(s);
 const app = $('#app');
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -107,6 +107,7 @@ const I = {
   key: svg('<circle cx="7.5" cy="15.5" r="4.5"/><path d="M10.7 12.3L21 2M16 7l3 3M19 4l2 2"/>'),
   alert: svg('<path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0zM12 9v4M12 17h.01"/>'),
   shield: svg('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>'),
+  wallet: svg('<path d="M20 7V5.5A1.5 1.5 0 0 0 18.5 4H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H5a2 2 0 0 1-2-2V6"/><path d="M16.5 12.5h4.5v4h-4.5a2 2 0 0 1 0-4z"/>'),
   flip: svg('<path d="M3 12a9 9 0 0 1 15.5-6.2L21 8M21 3v5h-5M21 12a9 9 0 0 1-15.5 6.2L3 16M3 21v-5h5"/>'),
   more: svg('<circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/>'),
   user: '<svg viewBox="0 0 40 48" class="sil" aria-hidden="true"><circle cx="20" cy="17" r="9" fill="currentColor"/><path d="M3 48c1-11 8-17 17-17s16 6 17 17z" fill="currentColor"/></svg>',
@@ -425,11 +426,20 @@ function animateIn(back = false) {
   p.classList.add(back ? 'enter-back' : 'enter');
 }
 function go(view, id = null) {
+  if (S.view === 'list') S.listScroll = $('.page', app)?.scrollTop || 0;
   S.view = view; S.id = id; S.flipped = false;
   history.pushState({ view, id }, '');
   render();
-  window.scrollTo(0, 0);
   animateIn();
+}
+// Tablar arasında keçid tarixçəyə yazılmır (geri düyməsi tabları gəzməsin)
+function switchTab(t) {
+  S.flipped = false; S.listScroll = 0; S.q = '';
+  if (t === 'settings') S.view = 'settings';
+  else { S.view = 'list'; S.filter = t; }
+  history.replaceState({ view: S.view, id: null }, '');
+  render();
+  buzz();
 }
 window.addEventListener('popstate', (e) => {
   if (!S.key) return;
@@ -462,7 +472,7 @@ function lock() {
   S.key = null; S.items = []; S.draft = null; S.revealed.clear(); S.q = '';
   document.querySelectorAll('.modal-wrap, .viewer').forEach((m) => m.remove());
   history.replaceState({ view: 'list' }, '');
-  S.view = 'list'; S.id = null;
+  S.view = 'list'; S.id = null; S.filter = 'all'; S.listScroll = 0;
   render();
 }
 
@@ -689,8 +699,9 @@ function filteredItems() {
 }
 function listHTML() {
   const items = filteredItems();
-  if (!S.items.length) {
-    return `<div class="empty">${I.shield}<h2>Hələ heç nə yoxdur</h2><p class="muted">Aşağıdakı <b>+</b> düyməsi ilə ilk kartınızı və ya sənədinizi əlavə edin.</p></div>`;
+  if (!S.items.some((i) => S.filter === 'all' || i.type === S.filter)) {
+    const what = { all: 'kartınızı və ya sənədinizi', doc: 'sənədinizi', note: 'qeydinizi' }[S.filter];
+    return `<div class="empty">${S.filter === 'all' ? I.shield : TYPES[S.filter].icon}<h2>Hələ heç nə yoxdur</h2><p class="muted">Aşağıdakı <b>+</b> düyməsi ilə ilk ${what} əlavə edin.</p></div>`;
   }
   if (!items.length) return '<div class="empty"><p class="muted">Heç nə tapılmadı</p></div>';
   const cards = items.filter((i) => i.type === 'card');
@@ -707,17 +718,45 @@ function listHTML() {
       <div id="card-info"></div>
     </section>${rest}`;
 }
+/* ---------------- Footer menyu ---------------- */
+const TABS = [['all', I.wallet, 'Cüzdan'], ['doc', I.doc, 'Sənədlər'], ['add'], ['note', I.note, 'Qeydlər'], ['settings', I.gear, 'Ayarlar']];
+const currentTab = () => (S.view === 'settings' ? 'settings' : S.filter);
+function tabbarHTML() {
+  const cur = currentTab();
+  return `<nav class="tabbar" aria-label="Menyu">${TABS.map(([t, icon, label]) => (t === 'add'
+    ? `<button class="tab-add" data-act="add" aria-label="Əlavə et"><span>${I.plus}</span></button>`
+    : `<button class="tab ${cur === t ? 'on' : ''}" data-act="tab" data-v="${t}" ${cur === t ? 'aria-current="page"' : ''}>${icon}<span>${label}</span></button>`)).join('')}</nav>`;
+}
+function heroHTML(title, sub) {
+  return `<header class="hero">
+      <div class="hero-top"><h1>${esc(title)}</h1><div class="hero-acts">${iconBtn('lock', I.lock, 'Kilidlə')}</div></div>
+      ${sub ? `<p class="hero-sub">${sub}</p>` : ''}
+    </header>`;
+}
+// Başlığın altındakı xətt yalnız məzmun sürüşəndə görünsün
+function watchScroll() {
+  const p = $('.page', app), h = $('.hero', app);
+  if (!p || !h) return;
+  p.addEventListener('scroll', () => h.classList.toggle('scrolled', p.scrollTop > 4), { passive: true });
+}
 function renderList() {
-  app.innerHTML = `<header class="hero">
-      <div class="hero-top"><h1>Cüzdan</h1><div class="hero-acts">${iconBtn('settings', I.gear, 'Ayarlar')}${iconBtn('lock', I.lock, 'Kilidlə')}</div></div>
-      <p class="hero-sub">${statusLine()}</p>
-    </header>
+  const count = (t) => S.items.filter((i) => i.type === t).length;
+  const head = {
+    all: ['Cüzdan', statusLine()],
+    doc: ['Sənədlər', `${count('doc')} sənəd`],
+    note: ['Qeydlər', `${count('note')} qeyd`]
+  }[S.filter] || ['Cüzdan', statusLine()];
+  app.classList.add('has-tabbar');
+  app.innerHTML = `${heroHTML(head[0], head[1])}
     <div class="page">
       ${S.items.length > 3 ? `<label class="search">${I.search}<input id="q" type="search" placeholder="Axtar…" value="${esc(S.q)}" autocomplete="off"></label>` : ''}
       <div id="list">${listHTML()}</div>
     </div>
-    <button class="fab" data-act="add" aria-label="Əlavə et">${I.plus}</button>`;
+    ${tabbarHTML()}`;
   afterList();
+  watchScroll();
+  // Detaldan qayıdanda siyahıda qaldığın yerə qayıt
+  if (S.listScroll) { $('.page', app).scrollTop = S.listScroll; S.listScroll = 0; }
 }
 
 function bigCardHTML(it) {
@@ -820,7 +859,8 @@ function renderEdit() {
 function renderSettings() {
   const st = S.settings;
   const opts = [[30, '30 saniyə'], [60, '1 dəqiqə'], [120, '2 dəqiqə'], [300, '5 dəqiqə'], [900, '15 dəqiqə']];
-  app.innerHTML = `${topbar('Ayarlar', iconBtn('back', I.back, 'Geri'), '')}
+  app.classList.add('has-tabbar');
+  app.innerHTML = `${heroHTML('Ayarlar', 'Təhlükəsizlik və ehtiyat nüsxə')}
     <div class="page">
       <h2 class="group-h">Təhlükəsizlik</h2>
       <div class="panel">
@@ -842,7 +882,9 @@ function renderSettings() {
         <button class="srow btnrow danger-text" data-act="wipe"><span>${I.trash} Bütün məlumatı sil</span></button>
       </div>
       <p class="muted small center">Kartlarım v${APP_VERSION} · AES-256-GCM · PBKDF2 ${S.vault.iter.toLocaleString('az')} təkrar</p>
-    </div>`;
+    </div>
+    ${tabbarHTML()}`;
+  watchScroll();
   navigator.storage?.estimate?.().then((e) => {
     const el = $('#s-usage');
     if (el) el.textContent = `${(e.usage / 1048576).toFixed(1)} MB`;
@@ -850,6 +892,7 @@ function renderSettings() {
 }
 
 function render() {
+  app.classList.remove('has-tabbar');
   if (!S.vault) return renderSetup();
   if (!S.key) return renderLock();
   ({ detail: renderDetail, edit: renderEdit, settings: renderSettings }[S.view] || renderList)();
@@ -878,8 +921,10 @@ app.addEventListener('click', async (e) => {
     case 'filter':
       S.filter = el.dataset.v;
       return renderList();
+    case 'tab': return switchTab(el.dataset.v);
     case 'add': {
-      const t = await sheet('Nə əlavə edək?', [
+      // Sənədlər / Qeydlər tabında birbaşa həmin növü aç
+      const t = S.view === 'list' && S.filter !== 'all' ? S.filter : await sheet('Nə əlavə edək?', [
         { v: 'card', icon: I.card, label: 'Bank kartı', hint: 'Nömrə, bitmə tarixi, CVV, PIN' },
         { v: 'doc', icon: I.doc, label: 'Sənəd', hint: 'Vəsiqə, pasport, sürücülük və s.' },
         { v: 'note', icon: I.note, label: 'Qeyd', hint: 'Şifrə, kod və ya istənilən mətn' }
