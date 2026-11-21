@@ -6,7 +6,7 @@
    AES-GCM 256 ilə şifrələnir. Açar ana şifrədən PBKDF2 ilə alınır.
    ========================================================= */
 
-const APP_VERSION = '3';
+const APP_VERSION = '4';
 const $ = (s, r = document) => r.querySelector(s);
 const app = $('#app');
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -129,7 +129,8 @@ function cardFace(it, reveal = false) {
   const show = reveal || S.revealed.has(it.id + ':number');
   const num = n ? (show ? groupCard(n) : '•••• •••• •••• ' + n.slice(-4)) : '•••• •••• •••• ••••';
   const sub = it.title && f.bank ? `<small>${esc(it.title)}</small>` : '';
-  return `<div class="cf front c-${esc(it.color || 'indigo')}">
+  const sk = skin(it);
+  return `<div class="cf front ${sk.cls}"${sk.style}>
     <div class="cf-top"><span class="cf-bank">${esc(f.bank || it.title || 'Bank kartı')}${sub}</span>${I.nfc}</div>
     <div class="cf-chip">${CHIP}</div>
     <div class="cf-num">${esc(num)}</div>
@@ -145,7 +146,8 @@ function cardFace(it, reveal = false) {
 function cardBack(it) {
   const f = it.fields || {};
   const cvv = f.cvv ? (S.revealed.has(it.id + ':cvv') ? f.cvv : '•'.repeat(f.cvv.length)) : '';
-  return `<div class="cf back c-${esc(it.color || 'indigo')}">
+  const sk = skin(it);
+  return `<div class="cf back ${sk.cls}"${sk.style}>
     <div class="cf-stripe"></div>
     <div class="cf-sigrow"><div class="cf-sig"><span>${esc(f.holder || '')}</span></div><div class="cf-cvv">${esc(cvv)}</div></div>
     <p class="cf-fine">${esc(f.bank || '')}${f.iban ? ` · ${esc(f.iban)}` : ''}<br>Bu kart sahibinə məxsusdur. Tapılarsa, banka qaytarın.</p>
@@ -215,7 +217,55 @@ const TYPES = {
     ]
   }
 };
-const COLORS = ['indigo', 'violet', 'rose', 'emerald', 'sky', 'amber', 'slate', 'black'];
+// Real kartlara bənzəyən hazır rənglər. finish: parlaq (gloss), mat (matte), metal; ink: açıq kartda tünd yazı.
+const PRESETS = {
+  classic: { l: 'Klassik mavi' }, red: { l: 'Qırmızı' }, green: { l: 'Yaşıl' }, orange: { l: 'Narıncı' },
+  purple: { l: 'Tünd bənövşəyi' }, indigo: { l: 'İndiqo' }, violet: { l: 'Bənövşəyi' }, rose: { l: 'Çəhrayı' },
+  emerald: { l: 'Zümrüd' }, sky: { l: 'Səma' }, amber: { l: 'Kəhrəba' }, slate: { l: 'Boz' }, black: { l: 'Qara' },
+  gold: { l: 'Gold', finish: 'metal' }, platinum: { l: 'Platinum', finish: 'metal', ink: 1 },
+  silver: { l: 'Gümüşü', finish: 'metal', ink: 1 }, blackmetal: { l: 'Black metal', finish: 'metal' },
+  pearl: { l: 'İnci ağ', ink: 1 }
+};
+const FINISHES = [['gloss', 'Parlaq'], ['matte', 'Mat'], ['metal', 'Metal']];
+const hex = (v, d) => (/^#[0-9a-f]{6}$/i.test(v || '') ? v : d);
+const lum = (h) => { const n = parseInt(h.slice(1), 16); return (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255; };
+const toHex = (...c) => '#' + c.map((x) => Math.round(x).toString(16).padStart(2, '0')).join('');
+// Kartın görünüşü: rəng sinfi, əhatə, yazı rəngi və xüsusi rənglər
+function skin(it) {
+  const c = it.color === 'custom' || PRESETS[it.color] ? it.color : 'indigo';
+  const fin = FINISHES.some(([v]) => v === it.finish) ? it.finish : PRESETS[c]?.finish || 'gloss';
+  let ink = !!PRESETS[c]?.ink;
+  let style = '';
+  if (c === 'custom') {
+    const c1 = hex(it.c1, '#5b5ff0');
+    const c2 = hex(it.c2, c1);
+    style = ` style="--c1:${c1};--c2:${c2}"`;
+    ink = (lum(c1) + lum(c2)) / 2 > 0.62;
+  }
+  return { cls: `c-${c} f-${fin}${ink ? ' ink-dark' : ''}`, style };
+}
+// Kartın şəklindən iki əsas rəngi götür (sol-yuxarı və sağ-aşağı hissə, median ilə — yazılar təsir etməsin)
+async function colorsFromImage(src) {
+  const img = new Image();
+  img.src = src;
+  await img.decode();
+  const W = 60, H = 38;
+  const c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  const g = c.getContext('2d', { willReadFrequently: true });
+  const w = img.naturalWidth, h = img.naturalHeight;
+  g.drawImage(img, w * 0.12, h * 0.12, w * 0.76, h * 0.76, 0, 0, W, H);
+  const d = g.getImageData(0, 0, W, H).data;
+  const median = (x0, y0, x1, y1) => {
+    const ch = [[], [], []];
+    for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
+      const i = (y * W + x) * 4;
+      ch[0].push(d[i]); ch[1].push(d[i + 1]); ch[2].push(d[i + 2]);
+    }
+    return toHex(...ch.map((a) => a.sort((p, q) => p - q)[a.length >> 1]));
+  };
+  return [median(0, 0, W * 0.45, H * 0.5), median(W * 0.55, H * 0.5, W, H)];
+}
 
 /* ---------------- Köməkçilər ---------------- */
 const digits = (s) => String(s || '').replace(/\D/g, '');
@@ -663,6 +713,23 @@ function fieldInput(f, v) {
   }
   return `<label class="fld"><span>${esc(f.l)}</span>${ctrl}</label>`;
 }
+function colorPickerHTML(d) {
+  const fin = FINISHES.some(([v]) => v === d.finish) ? d.finish : PRESETS[d.color]?.finish || 'gloss';
+  const custom = d.color === 'custom';
+  return `<div class="fld"><span>Kartın rəngi</span>
+    <button type="button" class="btn ghost photo-color" data-act="colorFromPhoto">${I.camera} Kartın şəklindən rəngi götür</button>
+    <div class="colors">
+      ${Object.entries(PRESETS).map(([c, p]) => `<button type="button" class="swatch c-${c} ${d.color === c ? 'on' : ''}" data-act="color" data-v="${c}" title="${esc(p.l)}" aria-label="${esc(p.l)}"></button>`).join('')}
+      <button type="button" class="swatch custom ${custom ? 'on' : ''}" data-act="color" data-v="custom" title="Öz rəngim" aria-label="Öz rəngim"></button>
+    </div>
+    <div class="color-name muted small">${esc(custom ? 'Öz rəngim' : PRESETS[d.color]?.l || '')}</div>
+    ${custom ? `<div class="cpicks">
+      <label class="cpick"><input type="color" data-c="c1" value="${hex(d.c1, '#5b5ff0')}"><span>Rəng 1</span></label>
+      <label class="cpick"><input type="color" data-c="c2" value="${hex(d.c2, hex(d.c1, '#a855f7'))}"><span>Rəng 2</span></label>
+    </div>` : ''}
+    <div class="seg" role="group" aria-label="Səth">${FINISHES.map(([v, l]) => `<button type="button" class="${fin === v ? 'on' : ''}" data-act="finish" data-v="${v}">${l}</button>`).join('')}</div>
+  </div>`;
+}
 function previewHTML() {
   const d = S.draft;
   return d.type === 'card' ? cardFace(d, true) : docFace(d, true);
@@ -680,7 +747,7 @@ function renderEdit() {
         ${d.photo ? `<button type="button" class="icon-btn" data-act="rmPhoto" aria-label="Şəkli sil">${I.trash}</button>` : ''}
       </div></div>` : ''}
       <label class="fld"><span>Ad (siyahıda görünür, istəyə bağlı)</span><input data-f="title" value="${esc(d.title)}" placeholder="${d.type === 'card' ? 'Məs: Maaş kartı' : d.type === 'doc' ? 'Məs: Mənim vəsiqəm' : 'Məs: Wi-Fi şifrəsi'}"></label>
-      ${d.type === 'card' ? `<div class="fld"><span>Rəng</span><div class="colors">${COLORS.map((c) => `<button type="button" class="swatch c-${c} ${d.color === c ? 'on' : ''}" data-act="color" data-v="${c}" aria-label="${c}"></button>`).join('')}</div></div>` : ''}
+      ${d.type === 'card' ? colorPickerHTML(d) : ''}
       ${T.fields.map((f) => fieldInput(f, d.fields[f.k])).join('')}
       <div class="fld"><span>Şəkillər (ön/arxa üz və s.)</span>
         <div class="thumbs">${d.images.map((src, i) => `<div class="thumb"><img src="${esc(safeImg(src))}" alt=""><button type="button" class="thumb-x" data-act="rmImg" data-i="${i}" aria-label="Sil">${I.x}</button></div>`).join('')}
@@ -768,9 +835,22 @@ app.addEventListener('click', async (e) => {
       return go('edit', cur.id);
     case 'color':
       S.draft.color = el.dataset.v;
-      document.querySelectorAll('.swatch').forEach((s) => s.classList.toggle('on', s === el));
-      $('#preview').innerHTML = previewHTML();
+      if (el.dataset.v !== 'custom') S.draft.finish = PRESETS[el.dataset.v].finish || 'gloss';
+      return renderEdit();
+    case 'finish':
+      S.draft.finish = el.dataset.v;
+      return renderEdit();
+    case 'colorFromPhoto': {
+      const src = (S.draft.images || []).map(safeImg).find(Boolean);
+      if (!src) return toast('Əvvəlcə aşağıda kartın şəklini əlavə edin');
+      try {
+        const [c1, c2] = await colorsFromImage(src);
+        Object.assign(S.draft, { color: 'custom', c1, c2 });
+        renderEdit();
+        toast('Rənglər şəkildən götürüldü');
+      } catch { toast('Rəngi götürmək alınmadı'); }
       return;
+    }
     case 'flip':
       S.flipped = !S.flipped;
       el.classList.toggle('on', S.flipped);
@@ -850,6 +930,11 @@ app.addEventListener('click', async (e) => {
 app.addEventListener('input', (e) => {
   const el = e.target;
   if (el.id === 'q') { S.q = el.value; $('#list').innerHTML = listHTML(); return; }
+  if (el.dataset.c && S.draft) {
+    S.draft[el.dataset.c] = hex(el.value, '#5b5ff0');
+    $('#preview').innerHTML = previewHTML();
+    return;
+  }
   const k = el.dataset.f;
   if (!k || !S.draft) return;
   const f = TYPES[S.draft.type].fields.find((x) => x.k === k);
