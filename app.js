@@ -6,7 +6,7 @@
    AES-GCM 256 ilə şifrələnir. Açar ana şifrədən PBKDF2 ilə alınır.
    ========================================================= */
 
-const APP_VERSION = '4';
+const APP_VERSION = '5';
 const $ = (s, r = document) => r.querySelector(s);
 const app = $('#app');
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -107,6 +107,8 @@ const I = {
   key: svg('<circle cx="7.5" cy="15.5" r="4.5"/><path d="M10.7 12.3L21 2M16 7l3 3M19 4l2 2"/>'),
   alert: svg('<path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0zM12 9v4M12 17h.01"/>'),
   shield: svg('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>'),
+  flip: svg('<path d="M3 12a9 9 0 0 1 15.5-6.2L21 8M21 3v5h-5M21 12a9 9 0 0 1-15.5 6.2L3 16M3 21v-5h5"/>'),
+  more: svg('<circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/>'),
   user: '<svg viewBox="0 0 40 48" class="sil" aria-hidden="true"><circle cx="20" cy="17" r="9" fill="currentColor"/><path d="M3 48c1-11 8-17 17-17s16 6 17 17z" fill="currentColor"/></svg>',
   nfc: '<svg viewBox="0 0 24 24" class="nfc" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M7 9.5A3.5 3.5 0 0 1 7 14.5M10.5 7A7 7 0 0 1 10.5 17M14 4.5A10.5 10.5 0 0 1 14 19.5"/></svg>'
 };
@@ -614,19 +616,69 @@ function renderLock() {
   setTimeout(() => $('#f-unlock input')?.focus(), 50);
 }
 
-function walletItem(it) {
-  const badge = expiryBadge(it);
-  return `<button class="wallet-card" data-act="open" data-id="${esc(it.id)}" aria-label="${esc(titleOf(it))}">
-    <div class="face-box">${it.type === 'card' ? cardFace(it) : docFace(it)}</div>
-    ${badge ? `<span class="wc-badge">${badge}</span>` : ''}
-  </button>`;
-}
 function listItemHTML(it) {
+  const exp = expiryOf(it);
+  const meta = expiryBadge(it) || (exp && !isNaN(exp) ? `<span class="ri-meta">${exp.getFullYear()}</span>` : '');
   return `<button class="row-item" data-act="open" data-id="${esc(it.id)}">
     <span class="ri-ico t-${it.type}">${TYPES[it.type].icon}</span>
     <span class="ri-main"><b>${esc(titleOf(it))}</b><small>${esc(subOf(it))}</small></span>
-    ${expiryBadge(it)}
+    ${meta}
   </button>`;
+}
+function daysLeft(it) {
+  const d = expiryOf(it);
+  return d && !isNaN(d) ? Math.ceil((d - Date.now()) / 86400000) : null;
+}
+const AZ_MONTHS = ['yanvar', 'fevral', 'mart', 'aprel', 'may', 'iyun', 'iyul', 'avqust', 'sentyabr', 'oktyabr', 'noyabr', 'dekabr'];
+const azDate = (d, withYear = false) => `${d.getDate()} ${AZ_MONTHS[d.getMonth()]}${withYear ? ' ' + d.getFullYear() : ''}`;
+const azDateTime = (d) => `${azDate(d, true)}, ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+function statusLine() {
+  const date = azDate(new Date());
+  const soon = S.items.filter((i) => { const n = daysLeft(i); return n !== null && n <= 60; })
+    .sort((a, b) => daysLeft(a) - daysLeft(b));
+  let st = '<span class="st-ok">hər şey qaydasındadır</span>';
+  if (soon.length === 1) {
+    const n = daysLeft(soon[0]);
+    st = `<span class="st-warn">${esc(titleOf(soon[0]))} — ${n < 0 ? 'müddəti bitib' : n + ' gün qalıb'}</span>`;
+  } else if (soon.length > 1) st = `<span class="st-warn">${soon.length} elementin müddəti bitir</span>`;
+  return `${esc(date)} · ${st}`;
+}
+const cardSlides = () => [...document.querySelectorAll('#carousel .slide')];
+const currentCard = () => S.items.find((i) => i.id === cardSlides()[S.slide]?.dataset.id);
+function slideInner(c) {
+  return `<div class="face-box flip" data-act="open" data-id="${esc(c.id)}" role="button" aria-label="${esc(titleOf(c))}"><div class="flip-in">${cardFace(c)}${cardBack(c)}</div></div>`;
+}
+const qaBtn = (act, icon, label) => `<button class="qa-btn" data-act="${act}"><span class="qa-ic">${icon}</span><span>${esc(label)}</span></button>`;
+function updateCardPanel() {
+  const c = currentCard();
+  const qa = $('#qa'), info = $('#card-info');
+  if (!c || !qa) return;
+  const shown = S.revealed.has(c.id + ':number');
+  qa.innerHTML = qaBtn('qaCopy', I.copy, 'Kopyala') + qaBtn('qaShow', shown ? I.eyeOff : I.eye, shown ? 'Gizlət' : 'Göstər')
+    + qaBtn('qaFlip', I.flip, 'Çevir') + qaBtn('qaMore', I.more, 'Ətraflı');
+  const f = c.fields;
+  const row = (l, v) => (v ? `<div class="info-row"><span>${esc(l)}</span><b>${v}</b></div>` : '');
+  info.innerHTML = `<div class="panel">${row('Bank', esc(f.bank))}${row('Kart sahibi', esc(f.holder))}${row('Bitmə tarixi', (expiryBadge(c) ? expiryBadge(c) + ' ' : '') + esc(f.expiry || ''))}</div>`;
+  info.hidden = !(f.bank || f.holder || f.expiry);
+  document.querySelectorAll('.dots span').forEach((d, i) => d.classList.toggle('on', i === S.slide));
+}
+function afterList() {
+  const car = $('#carousel');
+  if (!car) return;
+  const slides = cardSlides();
+  const step = () => (slides[1] ? slides[1].offsetLeft - slides[0].offsetLeft : slides[0].offsetWidth) || 1;
+  S.slide = Math.min(S.slide || 0, slides.length - 1);
+  car.scrollLeft = S.slide * step();
+  updateCardPanel();
+  car.addEventListener('scroll', () => {
+    const i = Math.max(0, Math.min(slides.length - 1, Math.round(car.scrollLeft / step())));
+    if (i !== S.slide) {
+      // əvvəlki kart çevrilmişdisə, geri çevir
+      slides[S.slide]?.querySelector('.flip')?.classList.remove('on');
+      S.slide = i;
+      updateCardPanel();
+    }
+  }, { passive: true });
 }
 function filteredItems() {
   const q = S.q.trim().toLocaleLowerCase('az');
@@ -641,24 +693,31 @@ function listHTML() {
     return `<div class="empty">${I.shield}<h2>Hələ heç nə yoxdur</h2><p class="muted">Aşağıdakı <b>+</b> düyməsi ilə ilk kartınızı və ya sənədinizi əlavə edin.</p></div>`;
   }
   if (!items.length) return '<div class="empty"><p class="muted">Heç nə tapılmadı</p></div>';
-  return Object.keys(TYPES).map((t) => {
+  const cards = items.filter((i) => i.type === 'card');
+  const rest = ['doc', 'note'].map((t) => {
     const g = items.filter((i) => i.type === t);
-    if (!g.length) return '';
-    return `<section class="group">${S.filter === 'all' ? `<h2 class="group-h">${TYPES[t].plural} <span>${g.length}</span></h2>` : ''}
-      <div class="${t === 'note' ? 'rows' : 'stack'}">${g.map(t === 'note' ? listItemHTML : walletItem).join('')}</div></section>`;
+    return g.length ? `<section class="group"><h2 class="sec-h">${TYPES[t].plural} <span>${g.length}</span></h2>
+      <div class="rows">${g.map(listItemHTML).join('')}</div></section>` : '';
   }).join('');
+  if (!cards.length) return rest;
+  return `<section class="group"><h2 class="sec-h">Kartlar <span>${cards.length}</span></h2>
+      <div class="carousel" id="carousel">${cards.map((c) => `<div class="slide" data-id="${esc(c.id)}">${slideInner(c)}</div>`).join('')}</div>
+      ${cards.length > 1 ? `<div class="dots" aria-hidden="true">${cards.map(() => '<span></span>').join('')}</div>` : ''}
+      <div class="qa" id="qa"></div>
+      <div id="card-info"></div>
+    </section>${rest}`;
 }
 function renderList() {
-  const expiring = S.items.filter((i) => expiryBadge(i)).length;
-  const chips = [['all', 'Hamısı'], ['card', 'Kartlar'], ['doc', 'Sənədlər'], ['note', 'Qeydlər']];
-  app.innerHTML = `${topbar('Kartlarım', iconBtn('settings', I.gear, 'Ayarlar'), iconBtn('lock', I.lock, 'Kilidlə'))}
+  app.innerHTML = `<header class="hero">
+      <div class="hero-top"><h1>Cüzdan</h1><div class="hero-acts">${iconBtn('settings', I.gear, 'Ayarlar')}${iconBtn('lock', I.lock, 'Kilidlə')}</div></div>
+      <p class="hero-sub">${statusLine()}</p>
+    </header>
     <div class="page">
-      <label class="search">${I.search}<input id="q" type="search" placeholder="Axtar…" value="${esc(S.q)}" autocomplete="off"></label>
-      <div class="chips">${chips.map(([v, l]) => `<button class="chip ${S.filter === v ? 'on' : ''}" data-act="filter" data-v="${v}">${l}</button>`).join('')}</div>
-      ${expiring ? `<div class="warn">${I.alert}<span>${expiring} elementin müddəti bitib və ya tezliklə bitir.</span></div>` : ''}
+      ${S.items.length > 3 ? `<label class="search">${I.search}<input id="q" type="search" placeholder="Axtar…" value="${esc(S.q)}" autocomplete="off"></label>` : ''}
       <div id="list">${listHTML()}</div>
     </div>
     <button class="fab" data-act="add" aria-label="Əlavə et">${I.plus}</button>`;
+  afterList();
 }
 
 function bigCardHTML(it) {
@@ -696,7 +755,7 @@ function renderDetail() {
       <div class="panel">${rows || '<p class="muted pad">Məlumat yoxdur</p>'}</div>
       ${imgs.length ? `<h2 class="group-h">Şəkillər</h2><div class="thumbs">${imgs.map((src, i) => `<button class="thumb" data-act="viewImg" data-i="${i}"><img src="${esc(src)}" alt="Şəkil ${i + 1}"></button>`).join('')}</div>` : ''}
       <button class="btn danger-ghost block" data-act="delete">${I.trash} Sil</button>
-      <p class="muted small center">Son dəyişiklik: ${new Date(it.updatedAt).toLocaleString('az')}</p>
+      <p class="muted small center">Son dəyişiklik: ${azDateTime(new Date(it.updatedAt))}</p>
     </div>`;
 }
 
@@ -856,6 +915,30 @@ app.addEventListener('click', async (e) => {
       el.classList.toggle('on', S.flipped);
       buzz();
       return;
+    case 'qaCopy': {
+      const c = currentCard();
+      if (!c?.fields.number) return toast('Kart nömrəsi yoxdur');
+      buzz();
+      return copy(digits(c.fields.number));
+    }
+    case 'qaShow': {
+      const c = currentCard();
+      if (!c) return;
+      const k = c.id + ':number';
+      S.revealed.has(k) ? S.revealed.delete(k) : S.revealed.add(k);
+      const slide = cardSlides()[S.slide];
+      const flipped = slide.querySelector('.flip')?.classList.contains('on');
+      slide.innerHTML = slideInner(c);
+      if (flipped) slide.querySelector('.flip').classList.add('on');
+      buzz();
+      return updateCardPanel();
+    }
+    case 'qaFlip':
+      cardSlides()[S.slide]?.querySelector('.flip')?.classList.toggle('on');
+      buzz();
+      return;
+    case 'qaMore':
+      return go('detail', currentCard()?.id);
     case 'addPhoto': {
       const inp = document.createElement('input');
       inp.type = 'file'; inp.accept = 'image/*';
@@ -929,7 +1012,7 @@ app.addEventListener('click', async (e) => {
 
 app.addEventListener('input', (e) => {
   const el = e.target;
-  if (el.id === 'q') { S.q = el.value; $('#list').innerHTML = listHTML(); return; }
+  if (el.id === 'q') { S.q = el.value; S.slide = 0; $('#list').innerHTML = listHTML(); afterList(); return; }
   if (el.dataset.c && S.draft) {
     S.draft[el.dataset.c] = hex(el.value, '#5b5ff0');
     $('#preview').innerHTML = previewHTML();
