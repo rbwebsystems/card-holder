@@ -105,8 +105,76 @@ const I = {
   upload: svg('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>'),
   key: svg('<circle cx="7.5" cy="15.5" r="4.5"/><path d="M10.7 12.3L21 2M16 7l3 3M19 4l2 2"/>'),
   alert: svg('<path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0zM12 9v4M12 17h.01"/>'),
-  shield: svg('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>')
+  shield: svg('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>'),
+  user: '<svg viewBox="0 0 40 48" class="sil" aria-hidden="true"><circle cx="20" cy="17" r="9" fill="currentColor"/><path d="M3 48c1-11 8-17 17-17s16 6 17 17z" fill="currentColor"/></svg>',
+  nfc: '<svg viewBox="0 0 24 24" class="nfc" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M7 9.5A3.5 3.5 0 0 1 7 14.5M10.5 7A7 7 0 0 1 10.5 17M14 4.5A10.5 10.5 0 0 1 14 19.5"/></svg>'
 };
+
+/* ---------------- Real kart görünüşü ---------------- */
+const CHIP = `<svg viewBox="0 0 50 38" class="emv" aria-hidden="true"><defs><linearGradient id="emvg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f7e7a1"/><stop offset=".45" stop-color="#d4af47"/><stop offset=".7" stop-color="#b8922e"/><stop offset="1" stop-color="#f1d98a"/></linearGradient></defs><rect x="1" y="1" width="48" height="36" rx="7" fill="url(#emvg)" stroke="#9c7a22" stroke-width=".8"/><path d="M1 13h14M1 25h14M35 13h14M35 25h14M15 1v11a3 3 0 0 0 3 3h14a3 3 0 0 0 3-3V1M15 37V26a3 3 0 0 1 3-3h14a3 3 0 0 1 3 3v11M18 15v8M32 15v8" stroke="#8a6a1c" stroke-width="1" fill="none" opacity=".75"/></svg>`;
+const circles = (a, b, mid) => `<svg viewBox="0 0 52 32" class="logo circles" aria-hidden="true"><circle cx="16" cy="16" r="16" fill="${a}"/><circle cx="36" cy="16" r="16" fill="${b}"/><path d="M26 3.51A16 16 0 0 1 26 28.49A16 16 0 0 1 26 3.51Z" fill="${mid}"/></svg>`;
+const wordmark = (t, size = 26, w = 80) => `<svg viewBox="0 0 ${w} 28" class="logo word" aria-hidden="true"><text x="${w}" y="23" text-anchor="end" font-family="Arial Black, Helvetica, Arial, sans-serif" font-weight="900" font-style="italic" font-size="${size}" fill="currentColor" letter-spacing="1">${t}</text></svg>`;
+const LOGO = {
+  VISA: wordmark('VISA'),
+  Mastercard: circles('#eb001b', '#f79e1b', '#ff5f00'),
+  Maestro: circles('#e7001b', '#00a2e5', '#7375cf'),
+  AMEX: '<svg viewBox="0 0 64 28" class="logo" aria-hidden="true"><rect width="64" height="28" rx="4" fill="#2e77bc"/><text x="32" y="19.5" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-weight="900" font-size="14" fill="#fff" letter-spacing="1">AMEX</text></svg>',
+  'МИР': wordmark('МИР', 24, 66),
+  UnionPay: wordmark('UnionPay', 18, 96)
+};
+function cardFace(it, reveal = false) {
+  const f = it.fields || {};
+  const n = digits(f.number);
+  const show = reveal || S.revealed.has(it.id + ':number');
+  const num = n ? (show ? groupCard(n) : '•••• •••• •••• ' + n.slice(-4)) : '•••• •••• •••• ••••';
+  const sub = it.title && f.bank ? `<small>${esc(it.title)}</small>` : '';
+  return `<div class="cf front c-${esc(it.color || 'indigo')}">
+    <div class="cf-top"><span class="cf-bank">${esc(f.bank || it.title || 'Bank kartı')}${sub}</span>${I.nfc}</div>
+    <div class="cf-chip">${CHIP}</div>
+    <div class="cf-num">${esc(num)}</div>
+    <div class="cf-bot">
+      <div class="cf-meta">
+        <span class="cf-valid"><small>VALID<br>THRU</small><b>${esc(f.expiry || '••/••')}</b></span>
+        <span class="cf-holder">${esc(f.holder || '')}</span>
+      </div>
+      ${LOGO[brand(n)] || ''}
+    </div>
+  </div>`;
+}
+function cardBack(it) {
+  const f = it.fields || {};
+  const cvv = f.cvv ? (S.revealed.has(it.id + ':cvv') ? f.cvv : '•'.repeat(f.cvv.length)) : '';
+  return `<div class="cf back c-${esc(it.color || 'indigo')}">
+    <div class="cf-stripe"></div>
+    <div class="cf-sigrow"><div class="cf-sig"><span>${esc(f.holder || '')}</span></div><div class="cf-cvv">${esc(cvv)}</div></div>
+    <p class="cf-fine">${esc(f.bank || '')}${f.iban ? ` · ${esc(f.iban)}` : ''}<br>Bu kart sahibinə məxsusdur. Tapılarsa, banka qaytarın.</p>
+    <div class="cf-backlogo">${LOGO[brand(f.number)] || ''}</div>
+  </div>`;
+}
+const DOC_STYLE = { 'Şəxsiyyət vəsiqəsi': 'id', 'Pasport': 'passport', 'Sürücülük vəsiqəsi': 'dl', 'Tibbi sığorta': 'med', 'Avtomobil qeydiyyatı': 'car' };
+function docFace(it, reveal = false) {
+  const f = it.fields || {};
+  const st = DOC_STYLE[f.docType] || 'paper';
+  const show = reveal || S.revealed.has(it.id + ':number');
+  const num = f.number ? (show ? f.number : mask({ secret: 'partial' }, f.number)) : '';
+  const cell = (l, v, cls = '') => (v ? `<div class="df-cell ${cls}"><small>${esc(l)}</small><b>${esc(v)}</b></div>` : '');
+  const photo = safeImg(it.photo);
+  return `<div class="df d-${st}">
+    <div class="df-head"><span>${esc((f.docType || 'Sənəd').toLocaleUpperCase('az'))}</span><span class="df-title">${esc(it.title || '')}</span></div>
+    <div class="df-body">
+      <div class="df-photo">${photo ? `<img src="${esc(photo)}" alt="">` : I.user}</div>
+      <div class="df-fields">
+        ${cell('Ad, soyad', f.fullName, 'wide')}
+        ${cell('Sənəd nömrəsi', num, 'mono')}
+        ${cell('Doğum tarixi', fmtDate(f.birthDate))}
+        ${cell('Verilib', fmtDate(f.issueDate))}
+        ${cell('Etibarlıdır', fmtDate(f.expiryDate))}
+      </div>
+    </div>
+    <div class="df-sign">${esc(f.fullName || '')}</div>
+  </div>`;
+}
+const buzz = () => navigator.vibrate?.(8);
 
 /* ---------------- Element növləri ---------------- */
 const TYPES = {
@@ -222,15 +290,24 @@ async function copy(text) {
     copy.t = setTimeout(() => navigator.clipboard.writeText('').catch(() => {}), 45000);
   } catch { toast('Kopyalamaq alınmadı'); }
 }
-async function compressImage(file) {
+async function compressImage(file, portrait = false) {
   const url = URL.createObjectURL(file);
   try {
     const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url; });
-    const max = 1800;
-    const sc = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+    const w = img.naturalWidth, h = img.naturalHeight;
     const c = document.createElement('canvas');
-    c.width = Math.round(img.naturalWidth * sc);
-    c.height = Math.round(img.naturalHeight * sc);
+    if (portrait) {
+      // 3:4 nisbətində mərkəzdən kəs (vəsiqə şəkli kimi)
+      const r = 0.75;
+      const cw = w / h > r ? h * r : w;
+      const ch = w / h > r ? h : w / r;
+      c.width = 360; c.height = 480;
+      c.getContext('2d').drawImage(img, (w - cw) / 2, (h - ch) / 2, cw, ch, 0, 0, 360, 480);
+      return c.toDataURL('image/jpeg', 0.85);
+    }
+    const sc = Math.min(1, 1800 / Math.max(w, h));
+    c.width = Math.round(w * sc);
+    c.height = Math.round(h * sc);
     c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
     return c.toDataURL('image/jpeg', 0.85);
   } finally { URL.revokeObjectURL(url); }
@@ -287,17 +364,26 @@ function sheet(title, options) {
 }
 
 /* ---------------- Naviqasiya ---------------- */
+function animateIn(back = false) {
+  const p = $('.page', app);
+  if (!p) return;
+  p.classList.remove('enter', 'enter-back');
+  void p.offsetWidth;
+  p.classList.add(back ? 'enter-back' : 'enter');
+}
 function go(view, id = null) {
-  S.view = view; S.id = id;
+  S.view = view; S.id = id; S.flipped = false;
   history.pushState({ view, id }, '');
   render();
   window.scrollTo(0, 0);
+  animateIn();
 }
 window.addEventListener('popstate', (e) => {
   if (!S.key) return;
   const st = e.state || { view: 'list' };
-  S.view = st.view; S.id = st.id;
+  S.view = st.view; S.id = st.id; S.flipped = false;
   render();
+  animateIn(true);
 });
 
 /* ---------------- Kilid ---------------- */
@@ -476,15 +562,14 @@ function renderLock() {
   setTimeout(() => $('#f-unlock input')?.focus(), 50);
 }
 
+function walletItem(it) {
+  const badge = expiryBadge(it);
+  return `<button class="wallet-card" data-act="open" data-id="${esc(it.id)}" aria-label="${esc(titleOf(it))}">
+    <div class="face-box">${it.type === 'card' ? cardFace(it) : docFace(it)}</div>
+    ${badge ? `<span class="wc-badge">${badge}</span>` : ''}
+  </button>`;
+}
 function listItemHTML(it) {
-  if (it.type === 'card') {
-    const n = digits(it.fields.number);
-    return `<button class="mini-card c-${esc(it.color || 'indigo')}" data-act="open" data-id="${esc(it.id)}">
-      <div class="mc-top"><span>${esc(it.fields.bank || titleOf(it))}</span><span class="mc-brand">${esc(brand(n))}</span></div>
-      <div class="mc-num">•••• ${esc(n.slice(-4) || '····')}</div>
-      <div class="mc-bot"><span>${esc(it.title || it.fields.holder || '')}</span><span>${expiryBadge(it) || esc(it.fields.expiry || '')}</span></div>
-    </button>`;
-  }
   return `<button class="row-item" data-act="open" data-id="${esc(it.id)}">
     <span class="ri-ico t-${it.type}">${TYPES[it.type].icon}</span>
     <span class="ri-main"><b>${esc(titleOf(it))}</b><small>${esc(subOf(it))}</small></span>
@@ -508,7 +593,7 @@ function listHTML() {
     const g = items.filter((i) => i.type === t);
     if (!g.length) return '';
     return `<section class="group">${S.filter === 'all' ? `<h2 class="group-h">${TYPES[t].plural} <span>${g.length}</span></h2>` : ''}
-      <div class="${t === 'card' ? 'card-grid' : 'rows'}">${g.map(listItemHTML).join('')}</div></section>`;
+      <div class="${t === 'note' ? 'rows' : 'stack'}">${g.map(t === 'note' ? listItemHTML : walletItem).join('')}</div></section>`;
   }).join('');
 }
 function renderList() {
@@ -525,15 +610,13 @@ function renderList() {
 }
 
 function bigCardHTML(it) {
-  const f = it.fields;
-  const n = digits(f.number);
-  const shown = S.revealed.has(it.id + ':number');
-  return `<button class="big-card c-${esc(it.color || 'indigo')}" data-act="reveal" data-k="${esc(it.id)}:number" aria-label="Nömrəni göstər/gizlət">
-    <div class="mc-top"><span>${esc(f.bank || '')}</span><span class="mc-brand">${esc(brand(n))}</span></div>
-    <div class="chip-ic"></div>
-    <div class="bc-num">${esc(n ? (shown ? groupCard(n) : '•••• •••• •••• ' + n.slice(-4)) : '')}</div>
-    <div class="mc-bot"><span>${esc(f.holder || '')}</span><span>${esc(f.expiry || '')}</span></div>
-  </button>`;
+  return `<button class="face-box flip ${S.flipped ? 'on' : ''}" data-act="flip" aria-label="Kartı çevir">
+      <div class="flip-in">${cardFace(it)}${cardBack(it)}</div>
+    </button>
+    <p class="hint">Arxa üzü üçün karta toxunun</p>`;
+}
+function bigDocHTML(it) {
+  return `<button class="face-box doc-big" data-act="reveal" data-k="${esc(it.id)}:number" aria-label="Nömrəni göstər/gizlət">${docFace(it)}</button>`;
 }
 function renderDetail() {
   const it = S.items.find((x) => x.id === S.id);
@@ -556,8 +639,8 @@ function renderDetail() {
   const imgs = (it.images || []).map(safeImg).filter(Boolean);
   app.innerHTML = `${topbar(titleOf(it), iconBtn('back', I.back, 'Geri'), iconBtn('edit', I.edit, 'Redaktə et'))}
     <div class="page">
-      ${it.type === 'card' ? bigCardHTML(it) : `<div class="doc-head"><span class="ri-ico big t-${it.type}">${T.icon}</span><div><b>${esc(titleOf(it))}</b><small class="muted">${esc(subOf(it) || T.label)}</small></div>${expiryBadge(it)}</div>`}
-      ${it.type === 'card' && expiryBadge(it) ? `<div class="center">${expiryBadge(it)}</div>` : ''}
+      ${it.type === 'card' ? bigCardHTML(it) : it.type === 'doc' ? bigDocHTML(it) : `<div class="doc-head"><span class="ri-ico big t-${it.type}">${T.icon}</span><div><b>${esc(titleOf(it))}</b><small class="muted">${esc(subOf(it) || T.label)}</small></div></div>`}
+      ${expiryBadge(it) ? `<div class="center">${expiryBadge(it)}</div>` : ''}
       <div class="panel">${rows || '<p class="muted pad">Məlumat yoxdur</p>'}</div>
       ${imgs.length ? `<h2 class="group-h">Şəkillər</h2><div class="thumbs">${imgs.map((src, i) => `<button class="thumb" data-act="viewImg" data-i="${i}"><img src="${esc(src)}" alt="Şəkil ${i + 1}"></button>`).join('')}</div>` : ''}
       <button class="btn danger-ghost block" data-act="delete">${I.trash} Sil</button>
@@ -578,12 +661,22 @@ function fieldInput(f, v) {
   }
   return `<label class="fld"><span>${esc(f.l)}</span>${ctrl}</label>`;
 }
+function previewHTML() {
+  const d = S.draft;
+  return d.type === 'card' ? cardFace(d, true) : docFace(d, true);
+}
 function renderEdit() {
   const d = S.draft;
   if (!d) { S.view = 'list'; return renderList(); }
   const T = TYPES[d.type];
   app.innerHTML = `${topbar(d.createdAt ? 'Redaktə' : 'Yeni: ' + T.label, iconBtn('back', I.x, 'Ləğv et'), '')}
     <form id="f-edit" class="page form" autocomplete="off" novalidate>
+      ${d.type !== 'note' ? `<div class="face-box preview ${d.type === 'doc' ? 'doc-big' : ''}" id="preview">${previewHTML()}</div>` : ''}
+      ${d.type === 'doc' ? `<div class="fld"><span>Vəsiqə şəkli (kartda görünür)</span><div class="photo-row">
+        <div class="df-photo small">${safeImg(d.photo) ? `<img src="${esc(safeImg(d.photo))}" alt="">` : I.user}</div>
+        <button type="button" class="btn ghost" data-act="addPhoto">${I.camera} ${d.photo ? 'Dəyiş' : 'Seç'}</button>
+        ${d.photo ? `<button type="button" class="icon-btn" data-act="rmPhoto" aria-label="Şəkli sil">${I.trash}</button>` : ''}
+      </div></div>` : ''}
       <label class="fld"><span>Ad (siyahıda görünür, istəyə bağlı)</span><input data-f="title" value="${esc(d.title)}" placeholder="${d.type === 'card' ? 'Məs: Maaş kartı' : d.type === 'doc' ? 'Məs: Mənim vəsiqəm' : 'Məs: Wi-Fi şifrəsi'}"></label>
       ${d.type === 'card' ? `<div class="fld"><span>Rəng</span><div class="colors">${COLORS.map((c) => `<button type="button" class="swatch c-${c} ${d.color === c ? 'on' : ''}" data-act="color" data-v="${c}" aria-label="${c}"></button>`).join('')}</div></div>` : ''}
       ${T.fields.map((f) => fieldInput(f, d.fields[f.k])).join('')}
@@ -674,7 +767,29 @@ app.addEventListener('click', async (e) => {
     case 'color':
       S.draft.color = el.dataset.v;
       document.querySelectorAll('.swatch').forEach((s) => s.classList.toggle('on', s === el));
+      $('#preview').innerHTML = previewHTML();
       return;
+    case 'flip':
+      S.flipped = !S.flipped;
+      el.classList.toggle('on', S.flipped);
+      buzz();
+      return;
+    case 'addPhoto': {
+      const inp = document.createElement('input');
+      inp.type = 'file'; inp.accept = 'image/*';
+      inp.onchange = async () => {
+        const f = inp.files[0];
+        if (!f) return;
+        try { S.draft.photo = await compressImage(f, true); } catch { return toast('Şəkil oxunmadı'); }
+        if (S.view === 'edit') renderEdit();
+      };
+      S.picking = true;
+      inp.click();
+      return;
+    }
+    case 'rmPhoto':
+      S.draft.photo = '';
+      return renderEdit();
     case 'addImg': {
       const inp = document.createElement('input');
       inp.type = 'file'; inp.accept = 'image/*'; inp.multiple = true;
@@ -696,11 +811,13 @@ app.addEventListener('click', async (e) => {
     case 'reveal': {
       const k = el.dataset.k;
       S.revealed.has(k) ? S.revealed.delete(k) : S.revealed.add(k);
+      buzz();
       return renderDetail();
     }
     case 'copy': {
       const f = TYPES[cur.type].fields.find((x) => x.k === el.dataset.k);
       const v = cur.fields[f.k] || '';
+      buzz();
       return copy(f.fmt === 'card' ? digits(v) : f.date ? fmtDate(v) : v);
     }
     case 'delete': {
@@ -741,6 +858,8 @@ app.addEventListener('input', (e) => {
   if (f?.upper) v = v.toLocaleUpperCase('az');
   if (v !== el.value) el.value = v;
   if (k === 'title') S.draft.title = v; else S.draft.fields[k] = v;
+  const pv = $('#preview');
+  if (pv) pv.innerHTML = previewHTML();
 });
 
 app.addEventListener('change', async (e) => {
