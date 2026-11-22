@@ -1,6 +1,6 @@
 // Service worker: əvvəlcə şəbəkə (həmişə ən son versiya), internet yoxdursa — keş.
 // Fayllar dəyişəndə VERSION-u və app.js-dəki APP_VERSION-u artır.
-const VERSION = 'v7';
+const VERSION = 'v8';
 const CACHE = `card-holder-${VERSION}`;
 const ASSETS = [
   './',
