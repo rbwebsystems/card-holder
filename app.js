@@ -6,7 +6,7 @@
    AES-GCM 256 ilə şifrələnir. Açar ana şifrədən PBKDF2 ilə alınır.
    ========================================================= */
 
-const APP_VERSION = '8';
+const APP_VERSION = '9';
 const $ = (s, r = document) => r.querySelector(s);
 const app = $('#app');
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -140,7 +140,7 @@ function cardFace(it, reveal = false) {
     <div class="cf-num">${S.animNum === it.id && show ? [...num].map((ch, i) => `<span class="dg" style="--i:${i}">${ch === ' ' ? '&nbsp;' : esc(ch)}</span>`).join('') : esc(num)}</div>
     <div class="cf-bot">
       <div class="cf-meta">
-        <span class="cf-valid"><small>VALID<br>THRU</small><b>${esc(f.expiry || '••/••')}</b></span>
+        <span class="cf-valid"><small>VALID THRU</small><b>${esc(f.expiry || '••/••')}</b></span>
         <span class="cf-holder">${esc(f.holder || '')}</span>
       </div>
       ${LOGO[brand(n)] || ''}
@@ -155,7 +155,7 @@ function cardBack(it) {
   return `<div class="cf back ${sk.cls}"${sk.style}>
     <div class="cf-stripe"></div>
     <div class="cf-sigrow"><div class="cf-sig"><span>${esc(f.holder || '')}</span></div><div class="cf-cvv">${esc(cvv)}</div></div>
-    <p class="cf-fine">${esc(f.bank || '')}${f.iban ? ` · ${esc(f.iban)}` : ''}<br>Bu kart sahibinə məxsusdur. Tapılarsa, banka qaytarın.</p>
+    <p class="cf-fine">${esc(f.bank || '')}${f.iban ? ` · ${esc(f.iban)}` : ''}</p>
     <div class="cf-backlogo">${LOGO[brand(f.number)] || ''}</div>
   </div>`;
 }
@@ -649,16 +649,21 @@ function daysLeft(it) {
 const AZ_MONTHS = ['yanvar', 'fevral', 'mart', 'aprel', 'may', 'iyun', 'iyul', 'avqust', 'sentyabr', 'oktyabr', 'noyabr', 'dekabr'];
 const azDate = (d, withYear = false) => `${d.getDate()} ${AZ_MONTHS[d.getMonth()]}${withYear ? ' ' + d.getFullYear() : ''}`;
 const azDateTime = (d) => `${azDate(d, true)}, ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-function statusLine() {
-  const date = azDate(new Date());
+function summaryLine() {
+  const n = (t) => S.items.filter((i) => i.type === t).length;
+  const parts = [[n('card'), 'kart'], [n('doc'), 'sənəd'], [n('note'), 'qeyd']].filter(([c]) => c).map(([c, l]) => `${c} ${l}`);
+  return parts.join(' · ') || azDate(new Date());
+}
+// Müddəti bitən / bitmək üzrə olan elementlər üçün bir sətirlik xəbərdarlıq
+function noticeHTML() {
   const soon = S.items.filter((i) => { const n = daysLeft(i); return n !== null && n <= 60; })
     .sort((a, b) => daysLeft(a) - daysLeft(b));
-  let st = '<span class="status">Hər şey qaydasındadır</span>';
-  if (soon.length === 1) {
-    const n = daysLeft(soon[0]);
-    st = `<span class="status warn">${esc(titleOf(soon[0]))} · ${n < 0 ? 'müddəti bitib' : n + ' gün qalıb'}</span>`;
-  } else if (soon.length > 1) st = `<span class="status warn">${soon.length} elementin müddəti bitir</span>`;
-  return `<span>${esc(date)}</span>${st}`;
+  if (!soon.length) return '';
+  const n = daysLeft(soon[0]);
+  const text = soon.length === 1
+    ? `${titleOf(soon[0])} — ${n < 0 ? 'müddəti bitib' : n + ' gün qalıb'}`
+    : `${soon.length} elementin müddəti bitir`;
+  return `<button class="notice" data-act="open" data-id="${esc(soon[0].id)}">${I.alert}<span>${esc(text)}</span></button>`;
 }
 const cardSlides = () => [...document.querySelectorAll('#carousel .slide')];
 const currentCard = () => S.items.find((i) => i.id === cardSlides()[S.slide]?.dataset.id);
@@ -673,10 +678,6 @@ function updateCardPanel() {
   const shown = S.revealed.has(c.id + ':number');
   qa.innerHTML = qaBtn('qaCopy', I.copy, 'Kopyala') + qaBtn('qaShow', shown ? I.eyeOff : I.eye, shown ? 'Gizlət' : 'Göstər')
     + qaBtn('qaFlip', I.flip, 'Çevir') + qaBtn('qaMore', I.more, 'Ətraflı');
-  const f = c.fields;
-  const row = (l, v) => (v ? `<div class="info-row"><span>${esc(l)}</span><b>${v}</b></div>` : '');
-  info.innerHTML = `<div class="panel">${row('Bank', esc(f.bank))}${row('Kart sahibi', esc(f.holder))}${row('Bitmə tarixi', (expiryBadge(c) ? expiryBadge(c) + ' ' : '') + esc(f.expiry || ''))}</div>`;
-  info.hidden = !(f.bank || f.holder || f.expiry);
   document.querySelectorAll('.dots span').forEach((d, i) => d.classList.toggle('on', i === S.slide));
 }
 function afterList() {
@@ -734,7 +735,6 @@ function listHTML() {
       <div class="carousel" id="carousel">${cards.map((c) => `<div class="slide" data-id="${esc(c.id)}">${slideInner(c)}</div>`).join('')}</div>
       ${cards.length > 1 ? `<div class="dots" aria-hidden="true">${cards.map(() => '<span></span>').join('')}</div>` : ''}
       <div class="qa" id="qa"></div>
-      <div id="card-info"></div>
     </section>${rest}`;
 }
 /* ---------------- Canlı fon ---------------- */
@@ -817,7 +817,7 @@ function settleTabbar() {
 function heroHTML(title, sub) {
   return `<header class="hero">
       <div class="hero-top"><h1>${esc(title)}</h1><div class="hero-acts">${iconBtn('lock', I.lock, 'Kilidlə')}</div></div>
-      ${sub ? `<p class="hero-sub">${sub}</p>` : ''}
+      ${sub ? `<p class="hero-sub">${esc(sub)}</p>` : ''}
     </header>`;
 }
 // Başlığın altındakı xətt yalnız məzmun sürüşəndə görünsün
@@ -829,13 +829,14 @@ function watchScroll() {
 function renderList() {
   const count = (t) => S.items.filter((i) => i.type === t).length;
   const head = {
-    all: ['Cüzdan', statusLine()],
+    all: ['Cüzdan', summaryLine()],
     doc: ['Sənədlər', `${count('doc')} sənəd`],
     note: ['Qeydlər', `${count('note')} qeyd`]
-  }[S.filter] || ['Cüzdan', statusLine()];
+  }[S.filter] || ['Cüzdan', summaryLine()];
   app.classList.add('has-tabbar');
   app.innerHTML = `${heroHTML(head[0], head[1])}
     <div class="page">
+      ${S.filter === 'all' && !S.q ? noticeHTML() : ''}
       ${S.items.length > 3 ? `<label class="search">${I.search}<input id="q" type="search" placeholder="Axtar…" value="${esc(S.q)}" autocomplete="off"></label>` : ''}
       <div id="list" class="${S.listScroll ? '' : 'stagger'}">${listHTML()}</div>
     </div>
