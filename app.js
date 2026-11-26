@@ -6,7 +6,7 @@
    AES-GCM 256 ilə şifrələnir. Açar ana şifrədən PBKDF2 ilə alınır.
    ========================================================= */
 
-const APP_VERSION = '9';
+const APP_VERSION = '10';
 const $ = (s, r = document) => r.querySelector(s);
 const app = $('#app');
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -134,7 +134,7 @@ function cardFace(it, reveal = false) {
   const num = n ? (show ? groupCard(n) : '•••• •••• •••• ' + n.slice(-4)) : '•••• •••• •••• ••••';
   const sub = it.title && f.bank ? `<small>${esc(it.title)}</small>` : '';
   const sk = skin(it);
-  return `<div class="cf front ${sk.cls}"${sk.style}>
+  return `<div class="cf front f-${sk.fin}"><i class="tint c-${sk.c}"${sk.style}></i>
     <div class="cf-top"><span class="cf-bank">${esc(f.bank || it.title || 'Bank kartı')}${sub}</span>${I.nfc}</div>
     <div class="cf-chip">${CHIP}</div>
     <div class="cf-num">${S.animNum === it.id && show ? [...num].map((ch, i) => `<span class="dg" style="--i:${i}">${ch === ' ' ? '&nbsp;' : esc(ch)}</span>`).join('') : esc(num)}</div>
@@ -152,7 +152,7 @@ function cardBack(it) {
   const f = it.fields || {};
   const cvv = f.cvv ? (S.revealed.has(it.id + ':cvv') ? f.cvv : '•'.repeat(f.cvv.length)) : '';
   const sk = skin(it);
-  return `<div class="cf back ${sk.cls}"${sk.style}>
+  return `<div class="cf back f-${sk.fin}"><i class="tint c-${sk.c}"${sk.style}></i>
     <div class="cf-stripe"></div>
     <div class="cf-sigrow"><div class="cf-sig"><span>${esc(f.holder || '')}</span></div><div class="cf-cvv">${esc(cvv)}</div></div>
     <p class="cf-fine">${esc(f.bank || '')}${f.iban ? ` · ${esc(f.iban)}` : ''}</p>
@@ -247,7 +247,7 @@ function skin(it) {
     style = ` style="--c1:${c1};--c2:${c2}"`;
     ink = (lum(c1) + lum(c2)) / 2 > 0.62;
   }
-  return { cls: `c-${c} f-${fin}${ink ? ' ink-dark' : ''}`, style };
+  return { cls: `c-${c} f-${fin}${ink ? ' ink-dark' : ''}`, style, c, fin };
 }
 // Kartın şəklindən iki əsas rəngi götür (sol-yuxarı və sağ-aşağı hissə, median ilə — yazılar təsir etməsin)
 async function colorsFromImage(src) {
@@ -743,13 +743,13 @@ const PRESET_HEX = {
   violet: '#a855f7', rose: '#e11d48', emerald: '#059669', sky: '#0284c7', amber: '#ca8a04', slate: '#64748b',
   black: '#2b2b34', gold: '#c9a04a', platinum: '#a9aeb3', silver: '#b9bdc1', blackmetal: '#3a3a3e', pearl: '#d8d4c8'
 };
-const AMBIENT_DEFAULT = ['#c9c3ff', '#ffd9c7', '#cfe9e1'];
+const AMBIENT_DEFAULT = ['#00c2ff', '#ff3dac', '#7b5cff'];
 function setAmbient(it) {
   let cols = AMBIENT_DEFAULT;
   if (it?.type === 'card') {
     const a = it.color === 'custom' ? hex(it.c1, '#5b5ff0') : PRESET_HEX[it.color] || '#5b5ff0';
     const b = it.color === 'custom' ? hex(it.c2, a) : a;
-    cols = [a, b, '#ffffff'];
+    cols = [a, '#ff3dac', b === a ? '#7b5cff' : b];
   }
   document.querySelectorAll('.ambient i').forEach((el, i) => { el.style.backgroundColor = cols[i]; });
 }
@@ -795,7 +795,7 @@ function attachTilt(el) {
 }
 
 /* ---------------- Footer menyu ---------------- */
-const TABS = [['all', I.wallet, 'Cüzdan'], ['doc', I.doc, 'Sənədlər'], ['add'], ['note', I.note, 'Qeydlər'], ['settings', I.gear, 'Ayarlar']];
+const TABS = [['all', I.wallet, 'Cüzdan'], ['doc', I.doc, 'Sənədlər'], ['note', I.note, 'Qeydlər'], ['settings', I.gear, 'Ayarlar']];
 const currentTab = () => (S.view === 'settings' ? 'settings' : S.filter);
 function tabbarHTML() {
   const cur = currentTab();
@@ -803,12 +803,10 @@ function tabbarHTML() {
   // göstərici əvvəlki tabdan başlayır, sonra yeni yerə sürüşür
   const from = S.prevTabIdx ?? idx;
   S.prevTabIdx = idx;
-  return `<nav class="tabbar" aria-label="Menyu"><div class="tabbar-in">
+  return `<nav class="tabbar" aria-label="Menyu"><div class="tabbar-in lg">
     <span class="tab-ind" style="--ti:${from}" data-to="${idx}"></span>
-    ${TABS.map(([t, icon, label]) => (t === 'add'
-    ? `<button class="tab-add" data-act="add" aria-label="Əlavə et"><span>${I.plus}</span></button>`
-    : `<button class="tab ${cur === t ? 'on' : ''}" data-act="tab" data-v="${t}" ${cur === t ? 'aria-current="page"' : ''}>${icon}<span>${label}</span></button>`)).join('')}
-  </div></nav>`;
+    ${TABS.map(([t, icon, label]) => `<button class="tab ${cur === t ? 'on' : ''}" data-act="tab" data-v="${t}" ${cur === t ? 'aria-current="page"' : ''}>${icon}<span>${label}</span></button>`).join('')}
+  </div><button class="tab-add lg" data-act="add" aria-label="Əlavə et">${I.plus}</button></nav>`;
 }
 function settleTabbar() {
   const ind = $('.tab-ind', app);

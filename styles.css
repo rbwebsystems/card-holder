@@ -687,3 +687,182 @@ textarea { resize: vertical; min-height: 96px; }
 .df-cell.wide b { font-size: 4.4cqw; text-transform: none; }
 .df-sign { display: none; }
 .group + .group { margin-top: 10px; }
+
+/* =========================================================
+   v10 — LIQUID GLASS · "Şüşə kartlar"
+   Tünd fon + neon işıqlar; bütün səthlər maye şüşədir
+   ========================================================= */
+:root {
+  --bg: #0b1020;
+  --glass: rgba(255, 255, 255, .09);
+  --glass-strong: rgba(255, 255, 255, .13);
+  --glass-line: rgba(255, 255, 255, .22);
+  --solid: rgba(255, 255, 255, .2);
+  --fill: rgba(255, 255, 255, .08);
+  --fill-2: rgba(255, 255, 255, .16);
+  --line: rgba(255, 255, 255, .1);
+  --text: #ffffff;
+  --text-2: rgba(255, 255, 255, .84);
+  --muted: rgba(235, 238, 255, .56);
+  --accent: #ffffff;
+  --amber: #ffc25a;
+  --red: #ff6b7a;
+  --green: #3ee0a0;
+  --sh-1: 0 8px 24px rgba(0, 0, 0, .28);
+  --sh-2: 0 18px 48px rgba(0, 0, 0, .42);
+  /* Maye şüşə materialı */
+  --lg-bg: radial-gradient(130% 70% at 12% 0%, rgba(255, 255, 255, .20), transparent 48%), rgba(255, 255, 255, .085);
+  --lg-edge:
+    inset 0 1px 0 rgba(255, 255, 255, .55),
+    inset 0 -1px 0 rgba(255, 255, 255, .12),
+    inset 1px 0 0 rgba(255, 255, 255, .18),
+    inset -1px 0 0 rgba(255, 255, 255, .08);
+  --lg-blur: blur(18px) saturate(185%) brightness(1.08);
+  color-scheme: dark;
+}
+html, body { background: var(--bg); }
+
+/* Neon fon */
+.ambient i { opacity: .62; filter: blur(64px); width: 62vmax; height: 62vmax; }
+.ambient i:nth-child(1) { top: -26vmax; left: -24vmax; background-color: #00c2ff; }
+.ambient i:nth-child(2) { top: 4vmax; right: -30vmax; background-color: #ff3dac; opacity: .5; }
+.ambient i:nth-child(3) { bottom: -30vmax; left: -14vmax; background-color: #7b5cff; opacity: .55; }
+.ambient i:nth-child(4) { bottom: -34vmax; right: -26vmax; background-color: #00e6a0; opacity: .32; animation: drift1 28s ease-in-out infinite alternate-reverse; }
+
+/* ---- Ümumi şüşə materialı ---- */
+.lg, .icon-btn, .qa-ic, .panel, .rows, .search, .notice, .btn.ghost, .sheet-opt, .cpick, .seg, .thumb.add, .photo-color,
+input:not([type=checkbox]):not([type=color]), select, textarea {
+  background: var(--lg-bg) !important;
+  backdrop-filter: var(--lg-blur); -webkit-backdrop-filter: var(--lg-blur);
+  box-shadow: var(--lg-edge), var(--sh-1) !important;
+  color: var(--text);
+}
+@supports (backdrop-filter: url(#x)) {
+  .tabbar-in, .tab-add, .icon-btn, .qa-ic { backdrop-filter: url(#lg-refract) blur(14px) saturate(185%) brightness(1.1); }
+}
+input::placeholder, textarea::placeholder { color: rgba(235, 238, 255, .42); }
+input:focus, select:focus, textarea:focus { box-shadow: var(--lg-edge), 0 0 0 4px rgba(255, 255, 255, .12) !important; }
+input[type=date] { color-scheme: dark; }
+select option { background: #1a1f35; color: #fff; }
+
+/* Başlıqlar */
+.hero.scrolled, .topbar.scrolled { background: rgba(11, 16, 32, .45); box-shadow: inset 0 -1px 0 rgba(255, 255, 255, .1); }
+.hero h1 { color: #fff; }
+.hero-sub { color: var(--muted); }
+.icon-btn { color: #fff; }
+
+/* ---- Kartlar: rəngli şüşə ---- */
+.cf {
+  background: rgba(255, 255, 255, .06);
+  backdrop-filter: blur(20px) saturate(170%); -webkit-backdrop-filter: blur(20px) saturate(170%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .6), inset 0 -1px 0 rgba(255, 255, 255, .14),
+    inset 1px 0 0 rgba(255, 255, 255, .22), inset -1px 0 0 rgba(255, 255, 255, .1),
+    0 20px 44px -10px rgba(0, 0, 0, .55);
+  color: #fff;
+}
+.cf > .tint { position: absolute !important; inset: 0; z-index: 0 !important; opacity: .58; border-radius: inherit; }
+.cf::before {
+  z-index: 1;
+  background:
+    radial-gradient(110% 70% at 8% 0%, rgba(255, 255, 255, .34), transparent 46%),
+    radial-gradient(70% 50% at 100% 100%, rgba(255, 255, 255, .10), transparent 60%);
+}
+.cf.f-metal::before {
+  background:
+    linear-gradient(105deg, transparent 22%, rgba(255, 255, 255, .28) 46%, rgba(255, 255, 255, .06) 56%, transparent 76%),
+    radial-gradient(110% 70% at 8% 0%, rgba(255, 255, 255, .26), transparent 46%);
+}
+.cf > :not(.tint):not(.glare) { z-index: 2; }
+.cf-num, .cf-valid b, .cf-holder { color: #fff !important; text-shadow: 0 1px 10px rgba(0, 0, 0, .25) !important; }
+.logo.word { color: #fff !important; }
+.cf-sig { background: rgba(255, 255, 255, .85); color: #2a2f45; }
+.cf-stripe { background: rgba(0, 0, 0, .7); }
+
+/* Sənəd üzü: tonlu şüşə */
+.df {
+  background: radial-gradient(110% 70% at 8% 0%, rgba(255, 255, 255, .28), transparent 46%), color-mix(in srgb, var(--tint) 46%, rgba(255, 255, 255, .05));
+  backdrop-filter: blur(20px) saturate(170%); -webkit-backdrop-filter: blur(20px) saturate(170%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .55), inset 0 -1px 0 rgba(255, 255, 255, .12), 0 20px 44px -10px rgba(0, 0, 0, .55);
+  color: #fff;
+}
+.df-head { background: color-mix(in srgb, var(--tint) 70%, rgba(0, 0, 0, .2)); }
+.df-cell small { color: rgba(255, 255, 255, .66); }
+.df-photo { background: rgba(255, 255, 255, .14); color: rgba(255, 255, 255, .45); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .2); }
+.d-id { --tint: #2fb3a6; } .d-passport { --tint: #c2407a; } .d-dl { --tint: #e2608e; }
+.d-med { --tint: #3d7df0; } .d-car { --tint: #8fb33a; } .d-paper { --tint: #8a93a8; }
+
+/* Karusel nöqtələri */
+.dots span { background: rgba(255, 255, 255, .25); }
+.dots span.on { background: #fff; }
+
+/* Sürətli düymələr */
+.qa-btn { color: var(--text-2); }
+.qa-ic { color: #fff; }
+.qa-ic.done { background: #fff !important; color: #0b1020; }
+
+/* Siyahılar */
+.row-item + .row-item, .info-row + .info-row, .drow + .drow, .srow + .srow, .li + .li { box-shadow: inset 0 1px 0 rgba(255, 255, 255, .1); }
+.row-item:active, .btnrow:active { background: rgba(255, 255, 255, .06); }
+.row-item::after { border-color: rgba(255, 255, 255, .35); }
+.ri-ico { background: rgba(255, 255, 255, .12) !important; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .35); }
+.t-doc { color: #5ef0c4; } .t-note { color: #7fb4ff; } .t-card { color: #b9a8ff; }
+.badge.amber { background: rgba(255, 194, 90, .2); color: #ffd58a; box-shadow: inset 0 0 0 1px rgba(255, 194, 90, .3); }
+.badge.red { background: rgba(255, 107, 122, .2); color: #ff9aa5; box-shadow: inset 0 0 0 1px rgba(255, 107, 122, .3); }
+.notice { color: #ffe2ad; }
+.notice svg { color: #ffc25a; }
+.notice::after { border-color: rgba(255, 226, 173, .6); }
+
+/* Düymələr */
+.btn.primary { background: #fff; color: #0b1020; box-shadow: 0 10px 30px rgba(0, 0, 0, .35), inset 0 -1px 0 rgba(0, 0, 0, .08); }
+.btn.danger-ghost { background: rgba(255, 107, 122, .14); color: #ff8a97; box-shadow: inset 0 0 0 1px rgba(255, 107, 122, .25); }
+.danger-text, .danger-text svg { color: #ff8a97 !important; }
+.warn { background: rgba(255, 194, 90, .14); color: #ffe2ad; box-shadow: inset 0 0 0 1px rgba(255, 194, 90, .25); }
+.seg button.on { background: rgba(255, 255, 255, .22); color: #fff; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .45); }
+.switch { background: rgba(255, 255, 255, .18); }
+.swatch.on { outline-color: #fff; }
+.empty > svg { color: #fff; }
+.thumb-x { background: rgba(0, 0, 0, .55) !important; }
+
+/* ---- Menyu: ayrıca şüşə zolaq + ayrıca dairəvi "+" (iOS 26) ---- */
+.tabbar { display: flex; align-items: center; gap: 10px; padding: 6px 14px calc(var(--safe-b) + 10px); }
+.tabbar-in {
+  flex: 1; grid-template-columns: repeat(4, 1fr); height: 64px; padding: 0 6px; border-radius: 32px;
+  background: var(--lg-bg); box-shadow: var(--lg-edge), var(--sh-2);
+}
+.tab-ind {
+  width: calc((100% - 12px) / 4); top: 6px; bottom: 6px; border-radius: 26px;
+  background: rgba(255, 255, 255, .16); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .5), inset 0 -1px 0 rgba(255, 255, 255, .1);
+}
+.tab { color: rgba(235, 238, 255, .62); }
+.tab.on { color: #fff; }
+.tab-add {
+  width: 64px; height: 64px; flex: none; border-radius: 50%; display: grid; place-items: center; color: #fff;
+  background: var(--lg-bg); box-shadow: var(--lg-edge), var(--sh-2);
+  backdrop-filter: var(--lg-blur); -webkit-backdrop-filter: var(--lg-blur);
+  transition: transform .45s var(--spring);
+}
+.tab-add svg { width: 26px; height: 26px; stroke-width: 2.3; transition: transform .45s var(--spring); }
+.tab-add:active { transform: scale(.88); }
+.tab-add:active svg { transform: rotate(90deg); }
+
+/* ---- Pəncərələr və bildiriş ---- */
+.modal-wrap { background: rgba(5, 8, 18, .45); }
+.modal {
+  background: radial-gradient(130% 60% at 10% 0%, rgba(255, 255, 255, .16), transparent 50%), rgba(28, 32, 54, .72);
+  backdrop-filter: blur(28px) saturate(180%); -webkit-backdrop-filter: blur(28px) saturate(180%);
+  box-shadow: var(--lg-edge), 0 30px 60px rgba(0, 0, 0, .5); color: #fff;
+}
+.modal::before { background: rgba(255, 255, 255, .3); }
+.sheet-opt .ico { background: rgba(255, 255, 255, .12); color: #fff; }
+#toast { background: radial-gradient(130% 80% at 10% 0%, rgba(255, 255, 255, .2), transparent 50%), rgba(30, 34, 58, .7); box-shadow: var(--lg-edge), var(--sh-2); }
+
+/* Giriş ekranı */
+.auth h1 { color: #fff; }
+.auth-logo { box-shadow: 0 20px 50px rgba(0, 0, 0, .5), 0 0 0 1px rgba(255, 255, 255, .12); }
+.search input:not([type=checkbox]) { background: none !important; box-shadow: none !important; backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+.ambient i:nth-child(1) { opacity: .5; }
+.ambient i:nth-child(2) { opacity: .4; }
+.ambient i:nth-child(3) { opacity: .48; }
+.drow-acts .icon-btn { background: none !important; box-shadow: none !important; backdrop-filter: none !important; -webkit-backdrop-filter: none !important; color: rgba(235, 238, 255, .7); }
+.drow-acts .icon-btn:active { background: rgba(255, 255, 255, .1) !important; }
